@@ -18,6 +18,9 @@ import autoTable from "jspdf-autotable";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LogOutIcon } from "lucide-react";
 import { toast } from "sonner";
+import { Form, useForm } from "react-hook-form";
+import { FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import * as yup from 'yup';
 
 interface EscalaItem {
   data: string;
@@ -247,6 +250,40 @@ export default function EscalaPreviewPage() {
     doc.save(`Escala_${mes}.pdf`);
   };
 
+  const formMinisterioSchema = yup.object({
+  ministerioNome: yup.string().min(3, {
+    message: "O nome deve ter pelo menos 3 caracteres."
+    }),
+  });
+
+    // 1. Define your form.
+  const formMinisterio = useForm<yup.InferType<typeof formMinisterioSchema>>({
+    defaultValues: {
+      ministerioNome: "",
+    },
+  })
+ 
+  // 2. Define a submit handler.
+  async function onSubmit(values: yup.InferType<typeof formMinisterioSchema>) {
+    // Do something with the form values.
+    // ✅ This will be type-safe and validated.
+    setLoading(true);
+    console.log(values)
+
+    const { data, error } = await supabase
+                .from("ministerios")
+                .insert([{ nome: ministerioNome }])
+                .select();
+
+              if (error) {
+                console.error("Erro ao criar ministério:", error);
+              } else {
+                setHasMinisterio(true);
+              }
+
+              setLoading(false);
+  }
+
   const PageSkeleton = () => (
     <div className="p-6 space-y-6">
       <Skeleton className="h-8 w-64 mb-4" /> {/* Título */}
@@ -276,7 +313,7 @@ export default function EscalaPreviewPage() {
         </h1>
         <p className="text-lg">Vamos começar a trabalhar no seu ministerio?</p>
         <Card className="rounded-2xl shadow-md p-4">
-          <p className="text-lg">Digite o nome do seu ministerio</p>
+          {/* <p className="text-lg">Digite o nome do seu ministerio</p>
           <Input
             placeholder="Nome do ministerio"
             value={ministerioNome}
@@ -297,7 +334,31 @@ export default function EscalaPreviewPage() {
             }}
           >
             Cadastrar Ministério
-          </Button>
+          </Button> */}
+
+        <Form {...formMinisterio}>
+          <form onSubmit={formMinisterio.handleSubmit(onSubmit)} className="space-y-8">
+            <FormField
+              control={formMinisterio.control}
+              name="ministerioNome"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Nome</FormLabel>
+                  <FormControl>
+                    <Input placeholder="shadcn" {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    This is your public display name.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+        <Button type="submit" disabled={loading}>Cadastrar</Button>
+      </form>
+    </Form>
+
+
         </Card>
       </main>
     );
