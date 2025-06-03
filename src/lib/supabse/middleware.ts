@@ -36,15 +36,15 @@ export default async function updateSession(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
   // Redirect unauthenticated users to login, except for auth routes
-  if (!user && !path.startsWith(LOGIN_PATH) && !path.startsWith("/auth")) {
-    const url = request.nextUrl.clone();
-    url.pathname = LOGIN_PATH;
-    url.searchParams.set("next", path);
-    return NextResponse.redirect(url);
-  }
+  // if (!user && !path.startsWith(LOGIN_PATH) && !path.startsWith("/auth")) {
+  //   const url = request.nextUrl.clone();
+  //   url.pathname = LOGIN_PATH;
+  //   url.searchParams.set("next", path);
+  //   return NextResponse.redirect(url);
+  // }
   console.log("path.startsWith(LOGIN_PATH)", path.startsWith(LOGIN_PATH))
   // Prevent authenticated users from accessing the login page
-  if (user && path.startsWith(LOGIN_PATH)) {
+  if (user ) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     console.log("url: ", url)
