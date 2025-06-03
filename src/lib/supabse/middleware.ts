@@ -46,7 +46,7 @@ export default async function updateSession(request: NextRequest) {
   // Prevent authenticated users from accessing the login page
   if (user && path.startsWith(LOGIN_PATH)) {
     const url = request.nextUrl.clone();
-    url.pathname = "/";
+    url.pathname = "/dashboard";
     return NextResponse.redirect(url);
   }
 
