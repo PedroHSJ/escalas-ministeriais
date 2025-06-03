@@ -1,55 +1,28 @@
-import { NextResponse, type NextRequest } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-const LOGIN_PATH = "/";
+import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs'
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 
-export default async function updateSession(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({ request });
+export async function middleware(req: NextRequest) {
+  const res = NextResponse.next()
+  const supabase = createMiddlewareClient({ req, res })
 
-  // Initialize Supabase server client with custom cookie handling
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll: () => request.cookies.getAll(),
-        setAll: (cookiesToSet) => {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          );
-
-          // Re-create the response with updated cookies
-          supabaseResponse = NextResponse.next({ request });
-
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          );
-        },
-      },
-    }
-  );
-
-  // Fetch the current authenticated user
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  console.log("tem usuario? ", !!user)
-  const path = request.nextUrl.pathname;
+    data: { session },
+  } = await supabase.auth.getSession()
 
-  // Redirect unauthenticated users to login, except for auth routes
-  if (!user && !path.startsWith(LOGIN_PATH) && !path.startsWith("/auth")) {
-    const url = request.nextUrl.clone();
-    url.pathname = LOGIN_PATH;
-    url.searchParams.set("next", path);
-    return NextResponse.redirect(url);
-  }
-  console.log("path.startsWith(LOGIN_PATH)", path.startsWith(LOGIN_PATH))
-  // Prevent authenticated users from accessing the login page
-  if (user && path.startsWith(LOGIN_PATH)) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
-    console.log("url: ", url)
-    return NextResponse.redirect(url);
+  // Redirecionar para login se não autenticado e tentando acessar rota protegida
+  if (!session && req.nextUrl.pathname.startsWith('/dashboard')) {
+    return NextResponse.redirect(new URL('/login', req.url))
   }
 
-  return supabaseResponse;
+  // Redirecionar para dashboard se autenticado e tentando acessar login
+  if (session && req.nextUrl.pathname === '/login') {
+    return NextResponse.redirect(new URL('/dashboard', req.url))
+  }
+
+  return res
+}
+
+export const config = {
+  matcher: ['/dashboard/:path*', '/login']
 }
