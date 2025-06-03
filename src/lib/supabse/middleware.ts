@@ -32,7 +32,7 @@ export default async function updateSession(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
+  console.log("tem usuario? ", !!user)
   const path = request.nextUrl.pathname;
 
   // Redirect unauthenticated users to login, except for auth routes
@@ -42,11 +42,12 @@ export default async function updateSession(request: NextRequest) {
     url.searchParams.set("next", path);
     return NextResponse.redirect(url);
   }
-
+  console.log("path.startsWith(LOGIN_PATH)", path.startsWith(LOGIN_PATH))
   // Prevent authenticated users from accessing the login page
   if (user && path.startsWith(LOGIN_PATH)) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
+    console.log("url: ", url)
     return NextResponse.redirect(url);
   }
 
