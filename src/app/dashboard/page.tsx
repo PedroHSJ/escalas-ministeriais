@@ -286,11 +286,10 @@ export default function EscalaPreviewPage() {
     // Do something with the form values.
     // ✅ This will be type-safe and validated.
     setLoading(true);
-    console.log(values);
 
     const { data, error } = await supabase
       .from("ministerios")
-      .insert([{ nome: ministerioNome, user_id: userId }])
+      .insert([{ nome: values.ministerioNome, user_id: userId }])
       .select();
 
     if (error) {
@@ -363,10 +362,10 @@ export default function EscalaPreviewPage() {
                     <FormItem>
                       <FormLabel>Nome</FormLabel>
                       <FormControl>
-                        <Input placeholder="shadcn" {...field} />
+                        <Input placeholder="Ministério Infantil" {...field} />
                       </FormControl>
                       <FormDescription>
-                        This is your public display name.
+                        Digite o nome do seu ministério.
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
