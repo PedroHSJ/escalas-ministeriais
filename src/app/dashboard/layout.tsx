@@ -1,4 +1,5 @@
 // app/layout.tsx
+import { FormProvider } from "react-hook-form";
 import "../globals.css";
 import { ReactNode } from "react";
 
@@ -10,7 +11,9 @@ export const metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="pt">
-      <body>{children}</body>
+      <body>
+        <FormProvider>{children}</FormProvider>
+      </body>
     </html>
   );
 }

@@ -18,9 +18,16 @@ import autoTable from "jspdf-autotable";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LogOutIcon } from "lucide-react";
 import { toast } from "sonner";
-import { Form, useForm } from "react-hook-form";
-import { FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import * as yup from 'yup';
+import { Form, FormProvider, useForm } from "react-hook-form";
+import {
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import * as yup from "yup";
 
 interface EscalaItem {
   data: string;
@@ -263,37 +270,37 @@ export default function EscalaPreviewPage() {
   };
 
   const formMinisterioSchema = yup.object({
-  ministerioNome: yup.string().min(3, {
-    message: "O nome deve ter pelo menos 3 caracteres."
+    ministerioNome: yup.string().min(3, {
+      message: "O nome deve ter pelo menos 3 caracteres.",
     }),
   });
 
-    // 1. Define your form.
+  // 1. Define your form.
   const formMinisterio = useForm<yup.InferType<typeof formMinisterioSchema>>({
     defaultValues: {
       ministerioNome: "",
     },
-  })
- 
+  });
+
   // 2. Define a submit handler.
   async function onSubmit(values: yup.InferType<typeof formMinisterioSchema>) {
     // Do something with the form values.
     // ✅ This will be type-safe and validated.
     setLoading(true);
-    console.log(values)
+    console.log(values);
 
     const { data, error } = await supabase
-                .from("ministerios")
-                .insert([{ nome: ministerioNome }])
-                .select();
+      .from("ministerios")
+      .insert([{ nome: ministerioNome }])
+      .select();
 
-              if (error) {
-                console.error("Erro ao criar ministério:", error);
-              } else {
-                setHasMinisterio(true);
-              }
+    if (error) {
+      console.error("Erro ao criar ministério:", error);
+    } else {
+      setHasMinisterio(true);
+    }
 
-              setLoading(false);
+    setLoading(false);
   }
 
   const PageSkeleton = () => (
@@ -347,30 +354,32 @@ export default function EscalaPreviewPage() {
           >
             Cadastrar Ministério
           </Button> */}
-
-        <Form {...formMinisterio}>
-          <form onSubmit={formMinisterio.handleSubmit(onSubmit)} className="space-y-8">
-            <FormField
-              control={formMinisterio.control}
-              name="ministerioNome"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nome</FormLabel>
-                  <FormControl>
-                    <Input placeholder="shadcn" {...field} />
-                  </FormControl>
-                  <FormDescription>
-                    This is your public display name.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-        <Button type="submit" disabled={loading}>Cadastrar</Button>
-      </form>
-    </Form>
-
-
+          <Form {...formMinisterio}>
+            <form
+              onSubmit={formMinisterio.handleSubmit(onSubmit)}
+              className="space-y-8"
+            >
+              <FormField
+                control={formMinisterio.control}
+                name="ministerioNome"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nome</FormLabel>
+                    <FormControl>
+                      <Input placeholder="shadcn" {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      This is your public display name.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button type="submit" disabled={loading}>
+                Cadastrar
+              </Button>
+            </form>
+          </Form>
         </Card>
       </main>
     );
