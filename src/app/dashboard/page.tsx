@@ -354,32 +354,34 @@ export default function EscalaPreviewPage() {
           >
             Cadastrar Ministério
           </Button> */}
-          <Form {...formMinisterio}>
-            <form
-              onSubmit={formMinisterio.handleSubmit(onSubmit)}
-              className="space-y-8"
-            >
-              <FormField
-                control={formMinisterio.control}
-                name="ministerioNome"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Nome</FormLabel>
-                    <FormControl>
-                      <Input placeholder="shadcn" {...field} />
-                    </FormControl>
-                    <FormDescription>
-                      This is your public display name.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <Button type="submit" disabled={loading}>
-                Cadastrar
-              </Button>
-            </form>
-          </Form>
+          <FormProvider {...formMinisterio}>
+            <Form {...formMinisterio}>
+              <form
+                onSubmit={formMinisterio.handleSubmit(onSubmit)}
+                className="space-y-8"
+              >
+                <FormField
+                  control={formMinisterio.control}
+                  name="ministerioNome"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Nome</FormLabel>
+                      <FormControl>
+                        <Input placeholder="shadcn" {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        This is your public display name.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button type="submit" disabled={loading}>
+                  Cadastrar
+                </Button>
+              </form>
+            </Form>
+          </FormProvider>
         </Card>
       </main>
     );
