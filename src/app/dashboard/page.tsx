@@ -72,41 +72,40 @@ export default function EscalaPreviewPage() {
   const [ministerioId, setMinisterioId] = useState("");
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState("");
-  useEffect(() => {
-    const fetchMinisterio = async (userId: string) => {
-      setLoading(true); // Inicia o carregamento
+  const fetchMinisterio = async (userId: string) => {
+    setLoading(true); // Inicia o carregamento
 
-      try {
-        const { data, error } = await supabase
-          .from("ministerios")
-          .select("*")
-          .eq("user_id", userId)
-          .single();
+    try {
+      const { data, error } = await supabase
+        .from("ministerios")
+        .select("*")
+        .eq("user_id", userId)
+        .single();
 
-        if (error) {
-          console.error("Erro ao buscar ministério:", error);
-        } else {
-          setHasMinisterio(!!data);
-          setMinisterioId(data?.id || "");
-          setMinisterioNome(data?.nome || "");
-        }
-      } catch (error) {
+      if (error) {
         console.error("Erro ao buscar ministério:", error);
-      } finally {
-        setLoading(false); // Finaliza o carregamento independente do resultado
-      }
-    };
-
-    const fetchSessionAndMinisterio = async () => {
-      const { data } = await supabase.auth.getSession();
-      if (data.session?.user) {
-        setUserId(data.session.user.id);
-        fetchMinisterio(data.session?.user?.id);
       } else {
-        setLoading(false); // Se não houver usuário, finaliza o carregamento
+        setHasMinisterio(!!data);
+        setMinisterioId(data?.id || "");
+        setMinisterioNome(data?.nome || "");
       }
-    };
+    } catch (error) {
+      console.error("Erro ao buscar ministério:", error);
+    } finally {
+      setLoading(false); // Finaliza o carregamento independente do resultado
+    }
+  };
 
+  const fetchSessionAndMinisterio = async () => {
+    const { data } = await supabase.auth.getSession();
+    if (data.session?.user) {
+      setUserId(data.session.user.id);
+      fetchMinisterio(data.session?.user?.id);
+    } else {
+      setLoading(false); // Se não houver usuário, finaliza o carregamento
+    }
+  };
+  useEffect(() => {
     fetchSessionAndMinisterio();
   }, []);
 
@@ -299,7 +298,7 @@ export default function EscalaPreviewPage() {
     } else {
       setHasMinisterio(true);
     }
-
+    fetchSessionAndMinisterio();
     setLoading(false);
   }
 
