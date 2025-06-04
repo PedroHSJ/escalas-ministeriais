@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { use, useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -61,14 +61,16 @@ export default function EscalaPreviewPage() {
   const [hasMinisterio, setHasMinisterio] = useState(false);
   const [ministerioId, setMinisterioId] = useState("");
   const [loading, setLoading] = useState(true);
+  const [userId, setUserId] = useState("");
   useEffect(() => {
-    const fetchMinisterio = async () => {
+    const fetchMinisterio = async (userId: string) => {
       setLoading(true); // Inicia o carregamento
 
       try {
         const { data, error } = await supabase
           .from("ministerios")
           .select("*")
+          .eq("user_id", userId)
           .single();
 
         if (error) {
@@ -85,7 +87,17 @@ export default function EscalaPreviewPage() {
       }
     };
 
-    fetchMinisterio();
+    const fetchSessionAndMinisterio = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (data.session?.user) {
+        setUserId(data.session.user.id);
+        fetchMinisterio(data.session?.user?.id);
+      } else {
+        setLoading(false); // Se não houver usuário, finaliza o carregamento
+      }
+    };
+
+    fetchSessionAndMinisterio();
   }, []);
 
   const adicionarNaEscala = () => {
@@ -286,7 +298,7 @@ export default function EscalaPreviewPage() {
             onClick={async () => {
               const { data, error } = await supabase
                 .from("ministerios")
-                .insert([{ nome: ministerioNome }])
+                .insert([{ nome: ministerioNome, user_id: userId }])
                 .select();
 
               if (error) {
