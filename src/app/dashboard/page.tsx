@@ -356,10 +356,7 @@ export default function EscalaPreviewPage() {
           </Button> */}
           <FormProvider {...formMinisterio}>
             <Form {...formMinisterio}>
-              <form
-                onSubmit={formMinisterio.handleSubmit(onSubmit)}
-                className="space-y-8"
-              >
+              <form className="space-y-8">
                 <FormField
                   control={formMinisterio.control}
                   name="ministerioNome"
@@ -376,7 +373,11 @@ export default function EscalaPreviewPage() {
                     </FormItem>
                   )}
                 />
-                <Button type="submit" disabled={loading}>
+                <Button
+                  type="button"
+                  disabled={loading}
+                  onClick={() => formMinisterio.handleSubmit(onSubmit)()}
+                >
                   Cadastrar
                 </Button>
               </form>

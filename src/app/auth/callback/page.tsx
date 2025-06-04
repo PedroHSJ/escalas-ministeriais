@@ -22,7 +22,7 @@ export default function AuthCallback() {
         router.push("/login");
       }
     };
-
+    console.log("Iniciando processo de autenticação...");
     handleAuth();
   }, [router]);
 
