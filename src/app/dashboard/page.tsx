@@ -291,7 +291,7 @@ export default function EscalaPreviewPage() {
 
     const { data, error } = await supabase
       .from("ministerios")
-      .insert([{ nome: ministerioNome }])
+      .insert([{ nome: ministerioNome, user_id: userId }])
       .select();
 
     if (error) {
