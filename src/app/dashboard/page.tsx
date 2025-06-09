@@ -329,8 +329,8 @@ export default function EscalaPreviewPage() {
         <h1 className="text-2xl font-bold">
           Voce nao possui um ministerio cadastrado
         </h1>
-        <p className="text-lg">Vamos começar a trabalhar no seu ministerio?</p>
-        <Card className="rounded-2xl shadow-md p-4">
+        <p className="text-lg mb-2">Vamos começar a trabalhar no seu ministerio?</p>
+        <Card className="rounded-2xl shadow-md p-4 sm:w-1/4 w-full">
           {/* <p className="text-lg">Digite o nome do seu ministerio</p>
           <Input
             placeholder="Nome do ministerio"

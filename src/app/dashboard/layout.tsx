@@ -1,6 +1,7 @@
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Suspense } from "react";
+import "@/app/globals.css";
 
 export default function RootLayout({
   children,
