@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import * as yup from "yup";
+import { Label } from "@/components/ui/label";
 
 interface EscalaItem {
   data: string;
@@ -387,15 +388,16 @@ export default function EscalaPreviewPage() {
   }
 
   return (
-    <main className="p-6 space-y-6">
+    <main className="px-6 py-2">
       <div className="flex items-center gap-2 flex-row justify-between mb-4">
-        <div>
-          <h1 className="scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl">
-            Escala do Ministério
+        <div className="border-bottom border-gray-500 pb-2">
+          <h1 className="text-3xl font-extrabold tracking-tight lg:text-4xl">
+            Gerar Escala
           </h1>
-          <h4 className="scroll-m-20 text-xl font-semibold tracking-tight">
+
+          {/* <h4 className="scroll-m-20 text-xl font-semibold tracking-tight">
             Você está criando uma escala para o {ministerioNome}
-          </h4>
+          </h4> */}
         </div>
         <div>
           <Button
@@ -413,11 +415,15 @@ export default function EscalaPreviewPage() {
           </Button>
         </div>
       </div>
-
-      <div className="space-y-4">
+      
+      <Card className="rounded-2xl shadow-md p-4 mb-6">
+      <div className="space-y-4 w-full sm:w-1/2">
+      <Label htmlFor="mes">
+        Selecione o mês da escala
+      </Label>
         <Select value={mes} onValueChange={setMes}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Selecione o mês" />
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Janeiro" />
           </SelectTrigger>
           <SelectContent>
             {meses.map((m) => (
@@ -428,21 +434,29 @@ export default function EscalaPreviewPage() {
           </SelectContent>
         </Select>
 
+      <Label htmlFor="integrante">
+        Nome do Integrante
+      </Label>
         <Input
-          placeholder="Nome do Integrante"
+          placeholder="João Batista"
           value={integrante}
           onChange={(e) => setIntegrante(e.target.value)}
         />
-
-        <div className="flex gap-2">
+      <Label htmlFor="data">
+        Data
+      </Label>
           <Input
             type="date"
             value={inputData}
             onChange={(e) => setInputData(e.target.value)}
+            
           />
+      <Label htmlFor="instrumento">
+        Instrumento (opcional)
+      </Label>
           <Select value={instrumento} onValueChange={setInstrumento}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Instrumento (opcional)" />
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Violão" />
             </SelectTrigger>
             <SelectContent>
               {instrumentos.map((inst) => (
@@ -452,16 +466,17 @@ export default function EscalaPreviewPage() {
               ))}
             </SelectContent>
           </Select>
-          <Button onClick={adicionarNaEscala}>Adicionar na Escala</Button>
-        </div>
-
+      <Label htmlFor="observacao">
+        Observações (opcional)
+      </Label>
         <Textarea
-          placeholder="Observações"
+          placeholder="Observações sobre o integrante"
           value={observacao}
           onChange={(e) => setObservacao(e.target.value)}
         />
-      </div>
+          <Button onClick={adicionarNaEscala}>Adicionar na Escala</Button>
 
+      </div>
       <div>
         <h2 className="text-xl font-semibold">Preview da Escala - {mes}</h2>
         <Card className="rounded-2xl shadow-md p-4">
@@ -542,6 +557,7 @@ export default function EscalaPreviewPage() {
           </Button>
         </div>
       </div>
+      </Card>
     </main>
   );
 }
