@@ -112,10 +112,19 @@ export default function EscalaPreviewPage() {
 
   const adicionarNaEscala = () => {
     if (integrante && inputData) {
+      // Corrigir o problema de fuso horário
+      const dataSelecionada = new Date(inputData);
+      // Adicionar o fuso horário local para garantir que a data seja correta
+      const dataCorrigida = new Date(
+        dataSelecionada.getTime() + dataSelecionada.getTimezoneOffset() * 60000
+      )
+        .toISOString()
+        .split("T")[0];
+
       setEscala((prev) => [
         ...prev,
         {
-          data: inputData,
+          data: dataCorrigida,
           integrante,
           instrumento: instrumento || undefined,
           observacao,
@@ -301,6 +310,14 @@ export default function EscalaPreviewPage() {
     fetchSessionAndMinisterio();
     setLoading(false);
   }
+
+  const formatarData = (dataString: string) => {
+    const data = new Date(dataString);
+    // 60000 = 60 segundos * 1000 milissegundos = 1 minuto em milissegundos
+    return new Date(data.getTime() + data.getTimezoneOffset() * 60000).toLocaleDateString(
+      "pt-BR"
+    );
+  };
 
   const PageSkeleton = () => (
     <div className="p-6 space-y-6">
@@ -515,7 +532,7 @@ export default function EscalaPreviewPage() {
                         <tr key={data}>
                           <td className="border p-2"></td>
                           <td className="border p-2">
-                            {new Date(data).toLocaleDateString("pt-BR")}
+                            {formatarData(data)}
                           </td>
                           <td className="border p-2">
                             {integrantes.map((item) => (
