@@ -90,3 +90,4 @@ CREATE TABLE public.escala_participacoes (
   CONSTRAINT escala_participacoes_integrante_id_fkey FOREIGN KEY (integrante_id) REFERENCES public.integrantes(id),
   CONSTRAINT escala_participacoes_especializacao_fkey FOREIGN KEY (especializacao_id) REFERENCES public.especializacoes(id)
 );
+

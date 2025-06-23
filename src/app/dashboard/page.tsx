@@ -676,19 +676,19 @@ const router = useRouter();
     );
   }
 
-  if (redirectToOnboarding) {
-    console.log("Redirecionando para o onboarding...");
-    // return (
-    //   <OrganizationWizard 
-    //     userId={userId} 
-    //     onComplete={handleWizardComplete}
-    //   />
-    // );
-    // REDIRECIONAR PARA O ONBOARDING
-    console.log(organization)
-  router.push('/onboarding');
-  return null; // Retorne null enquanto o redirecionamento ocorre
-  }
+  // if (redirectToOnboarding) {
+  //   console.log("Redirecionando para o onboarding...");
+  //   // return (
+  //   //   <OrganizationWizard 
+  //   //     userId={userId} 
+  //   //     onComplete={handleWizardComplete}
+  //   //   />
+  //   // );
+  //   // REDIRECIONAR PARA O ONBOARDING
+  //   console.log(organization)
+  // router.push('/onboarding');
+  // return null; // Retorne null enquanto o redirecionamento ocorre
+  // }
 
   return (
     <main className="px-6 py-2">
