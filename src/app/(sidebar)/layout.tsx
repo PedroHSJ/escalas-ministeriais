@@ -1,7 +1,8 @@
+import "@/app/globals.css";
+import { AppSidebar } from "@/components/sidebar/app-sidebar";
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Suspense } from "react";
-import "@/app/globals.css";
 
 export default function RootLayout({
   children,
@@ -12,8 +13,8 @@ export default function RootLayout({
     <html lang="en">
       <body
       >
-            <SidebarProvider>
-
+        <SidebarProvider>
+          <AppSidebar />
          <SidebarInset>
             <header className="flex h-16 shrink-0 items-center gap-2 
                     transition-[width,height] ease-linear 
@@ -45,5 +46,5 @@ export default function RootLayout({
     </SidebarProvider>
       </body>
     </html>
-  );
+    );
 }

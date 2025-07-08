@@ -488,6 +488,7 @@ export function OrganizationWizard({ userId, onComplete }: OrganizationWizardPro
             <Button
               onClick={handleSubmit}
               disabled={!canProceed() || isLoading}
+              
             >
               {isLoading ? 'Criando...' : 'Finalizar Configuração'}
             </Button>
