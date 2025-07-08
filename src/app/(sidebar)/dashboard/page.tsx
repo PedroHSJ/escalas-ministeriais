@@ -638,7 +638,7 @@ const router = useRouter();
       fetchOrganization(data.session.user.id);
     } else {
      // setUserId("d7e39c07-f7e4-4065-8e3a-aac5ccb02f1b"); // For testing purposes, using a static user ID
-            fetchOrganization("d7e39c07-f7e4-4065-8e3a-aac5ccb02f1b");
+      //fetchOrganization("d7e39c07-f7e4-4065-8e3a-aac5ccb02f1b");
 
       setLoading(false);
     }

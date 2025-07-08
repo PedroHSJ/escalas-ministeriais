@@ -18,6 +18,7 @@ interface Organization {
   id: string;
   nome: string;
   tipo: string;
+  created_at: string;
 }
 
 interface Department {
@@ -327,7 +328,7 @@ export default function Page() {
               Visualize e gerencie todas as suas organizações
             </p>
           </div>
-          <Link href="/members/create">
+          <Link href="/organizations">
             <Button>
               <Plus className="mr-2 h-4 w-4" />
               Nova Organização
@@ -485,10 +486,8 @@ export default function Page() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Integrante</TableHead>
-                        <TableHead>Organização</TableHead>
-                        <TableHead>Departamento</TableHead>
-                        <TableHead>Especializações</TableHead>
+                        <TableHead>Nome</TableHead>
+                        <TableHead>Tipo</TableHead>
                         <TableHead>Cadastrado</TableHead>
                         <TableHead className="text-right">Ações</TableHead>
                       </TableRow>
@@ -506,6 +505,22 @@ export default function Page() {
                               <span className="font-medium">{org.nome}</span>
                             </div>
                           </TableCell>
+                          <TableCell>
+                            <div>
+                              {org.tipo && (
+                               <Badge variant="secondary" className="text-xs">
+                                {org.tipo.slice(0, 1).toUpperCase() + org.tipo.slice(1)}
+                              </Badge>
+                              )}                           
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div>
+                              <div className="text-sm">
+                                {format(new Date(org.created_at), "dd/MM/yyyy", { locale: ptBR })}
+                              </div>
+                            </div>
+                            </TableCell>
                           {/* <TableCell>
                             <div>
                               <div className="font-medium">{member.departamento?.organizacao?.nome}</div>
