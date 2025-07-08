@@ -23,7 +23,7 @@ export default function AuthCallback() {
         
         // Verificar se o usuário já tem uma organização
         const { data: organizations, error: orgError } = await supabase
-          .from('organizations')
+          .from('organizacoes')
           .select('id')
           .eq('user_id', data.session.user.id)
           .limit(1);

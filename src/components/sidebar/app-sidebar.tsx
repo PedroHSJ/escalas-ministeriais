@@ -54,6 +54,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   ],
   navMain: [
     {
+      title: "Início",
+      url: "/dashboard",
+      icon: GalleryVerticalEnd,
+      isActive: pathname === "/dashboard",
+    },
+    {
       title: "Estrutura",
       url: "#",
       icon: SquareTerminal,
