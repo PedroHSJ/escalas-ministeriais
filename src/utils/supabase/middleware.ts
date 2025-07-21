@@ -36,5 +36,43 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  return supabaseResponse;
+  // Definir rotas públicas que não necessitam autenticação
+  const publicRoutes = ["/login", "/auth"];
+  const isPublicRoute = publicRoutes.some(route => 
+    request.nextUrl.pathname.startsWith(route)
+  );
+
+  // Se for uma rota pública, permitir acesso
+  if (isPublicRoute) {
+    return supabaseResponse;
+  }
+
+  // Para todas as outras rotas, verificar autenticação
+  try {
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
+
+    // Se não houver usuário autenticado ou houver erro, redirecionar para login
+    if (!user || error) {
+      console.log("User not authenticated, redirecting to /login", { error: error?.message });
+      const loginUrl = new URL("/login", request.url);
+      return NextResponse.redirect(loginUrl);
+    }
+
+    // Se há usuário autenticado mas está tentando acessar /login, redirecionar para dashboard
+    if (user && request.nextUrl.pathname === "/login") {
+      console.log("Authenticated user accessing login, redirecting to dashboard");
+      const dashboardUrl = new URL("/dashboard", request.url);
+      return NextResponse.redirect(dashboardUrl);
+    }
+
+    return supabaseResponse;
+    
+  } catch (error) {
+    console.error("Error checking authentication:", error);
+    const loginUrl = new URL("/login", request.url);
+    return NextResponse.redirect(loginUrl);
+  }
 }

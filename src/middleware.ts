@@ -2,28 +2,25 @@ import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "./utils/supabase/middleware";
 
 export async function middleware(request: NextRequest) {
-    if (process.env.NODE_ENV === "development") {
-    const { pathname } = request.nextUrl;
+  const { pathname } = request.nextUrl;
 
-    // Rotas que sempre podem ser acessadas sem autenticação
-    const publicRoutes = ["/login", "/auth", "/api", "/_next", "/favicon.ico"];
+  // Rotas que sempre podem ser acessadas sem autenticação
+  const publicRoutes = ["/login", "/auth", "/api", "/_next", "/favicon.ico"];
 
-    if (publicRoutes.some((route) => pathname.startsWith(route))) {
-      return NextResponse.next();
-    }
-
-    process.env.NODE_ENV === "development"
-      ? request.nextUrl.searchParams.set("dev", "true")
-      : request.nextUrl.searchParams.delete("dev");
-    // Se tem query param dev=true, permite acesso
-    if (request.nextUrl.searchParams.get("dev") === "true") {
-      return NextResponse.next();
-    }
-
-    // Para outras rotas em dev, verifica autenticação normalmente
-    return await updateSession(request);
+  // Se for uma rota pública, permitir acesso direto
+  if (publicRoutes.some((route) => pathname.startsWith(route))) {
+    return NextResponse.next();
   }
 
+  // Para desenvolvimento, permitir bypass com query param dev=true
+  if (process.env.NODE_ENV === "development") {
+    const devParam = request.nextUrl.searchParams.get("dev");
+    if (devParam === "true") {
+      return NextResponse.next();
+    }
+  }
+
+  // Para todas as outras rotas, verificar autenticação através do updateSession
   return await updateSession(request);
 }
 
