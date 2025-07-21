@@ -5,6 +5,7 @@ import {
   AudioWaveform,
   BookOpen,
   Bot,
+  Calendar,
   Command,
   Frame,
   GalleryVerticalEnd,
@@ -80,11 +81,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     {
       title: "Escalas",
       url: "#",
-      icon: Bot,
+      icon: Calendar,
+      isActive: pathname.startsWith("/generate") || pathname.startsWith("/scales"),
       items: [
         {
           title: "Gerar Escala",
-          url: "/generate",
+          url: "/scales/create",
+          isActive: pathname.startsWith("/scales/create"),
+        },
+        {
+          title: "Lista de Escalas",
+          url: "/scales/list",
+          isActive: pathname.startsWith("/scales/list"),
         }
       ],
     },
