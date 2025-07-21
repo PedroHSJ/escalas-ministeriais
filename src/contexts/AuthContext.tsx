@@ -45,6 +45,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         provider: "google",
         options: {
           redirectTo: `${window.location.origin}/auth/callback`, // Redirecionar após login
+          queryParams: {
+            prompt: "select_account", // Força a mostrar o seletor de contas do Google
+          },
         },
       });
       if (error) throw error;
