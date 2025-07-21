@@ -12,9 +12,10 @@ export default function Page(){
         const { data } = await supabase.auth.getSession();
         if (data.session?.user) {
           setUserId(data.session.user.id);
-        } else {
-         setUserId("d7e39c07-f7e4-4065-8e3a-aac5ccb02f1b"); // For testing purposes, using a static user ID    
-        }
+        } 
+        // else {
+        //  setUserId("d7e39c07-f7e4-4065-8e3a-aac5ccb02f1b"); // For testing purposes, using a static user ID    
+        // }
       };
     
       useEffect(() => {

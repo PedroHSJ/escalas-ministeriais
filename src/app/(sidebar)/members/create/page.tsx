@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Users, Plus, Edit, Trash2, Building2, User, ArrowLeft, List } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 interface Organization {
   id: string;
@@ -56,7 +56,7 @@ export default function Page() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [loading, setLoading] = useState(false);
-
+  const router = useRouter();
   // Form states
   const [memberName, setMemberName] = useState("");
   const [selectedSpecializations, setSelectedSpecializations] = useState<string[]>([]);
@@ -300,16 +300,15 @@ export default function Page() {
       if (isNew) {
         toast.success("Integrante cadastrado com sucesso!", {
           description: `${memberName} foi adicionado ao departamento.`,
-          action: {
-            label: "Ver Lista",
-            onClick: () => window.open("/escalas/members/list", "_blank")
-          }
+          
         });
       } else {
         toast.success("Integrante atualizado com sucesso!", {
           description: `As informações de ${memberName} foram atualizadas.`,
         });
       }
+
+      router.push("/members/list");
       
     } catch (error) {
       console.error("Erro ao salvar membro:", error);
@@ -501,7 +500,7 @@ export default function Page() {
           </Card>
 
           {/* Lista de Integrantes */}
-          <Card className="md:col-span-2">
+          {/*<Card className="md:col-span-2">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Users className="h-5 w-5" />
@@ -566,7 +565,7 @@ export default function Page() {
                 </div>
               )}
             </CardContent>
-          </Card>
+          </Card>*/}
         </div>
       </div>
     </Suspense>
