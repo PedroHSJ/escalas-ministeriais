@@ -11,6 +11,7 @@ import { format, getDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { toast } from "sonner";
 
 interface Scale {
   id: string;
@@ -31,11 +32,11 @@ interface Participation {
   id: string;
   data: string;
   observacao?: string;
-  integrante?: {
+  integrantes?: {
     id: string;
     nome: string;
   };
-  especializacao?: {
+  especializacoes?: {
     id: string;
     nome: string;
   };
@@ -132,6 +133,8 @@ export default function Page() {
     fetchScale();
   }, [scaleId]);
 
+
+
   const groupParticipationsByDay = () => {
     const grouped: Record<string, Participation[]> = {};
     
@@ -150,31 +153,72 @@ export default function Page() {
     return grouped;
   };
 
-  const printScale = () => {
-    const printContent = document.getElementById('scale-content');
-    if (!printContent) return;
-
-    const originalContents = document.body.innerHTML;
-    const printableContent = printContent.innerHTML;
-
-    document.body.innerHTML = `
-      <div style="padding: 20px; font-family: Arial, sans-serif;">
-        ${printableContent}
-      </div>
-    `;
-
-    window.print();
-    document.body.innerHTML = originalContents;
-    window.location.reload();
-  };
-
   const getInitials = (name: string) => {
+    console.log("Gerando iniciais para:", name);
     return name
       .split(' ')
       .map(n => n[0])
       .join('')
       .toUpperCase()
       .substring(0, 2);
+  };
+
+  const handlePrint = () => {
+    const printContent = document.getElementById('print-scale');
+    if (!printContent) {
+      toast.error('Erro ao preparar impressão');
+      return;
+    }
+
+    // Criar uma nova janela para impressão
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      toast.error('Não foi possível abrir a janela de impressão');
+      return;
+    }
+
+    // HTML completo para a janela de impressão
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html lang="pt-BR">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Impressão - ${scale?.nome}</title>
+          <script src="https://cdn.tailwindcss.com"></script>
+          <style>
+            @media print {
+              body { 
+                margin: 0;
+                padding: 20px;
+                font-family: system-ui, -apple-system, sans-serif;
+              }
+              .no-print { display: none !important; }
+              .page-break { page-break-before: always; }
+              table { width: 100%; border-collapse: collapse; }
+              th, td { border: 1px solid #e5e7eb; padding: 8px; text-align: left; }
+              th { background-color: #f9fafb; font-weight: 600; }
+            }
+          </style>
+        </head>
+        <body class="bg-white">
+          ${printContent.outerHTML}
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+    
+    // Aguardar o carregamento e imprimir
+    printWindow.onload = () => {
+      setTimeout(() => {
+        printWindow.print();
+        printWindow.close();
+      }, 500);
+    };
+    
+    toast.success('Preparando impressão...');
   };
 
   if (!scaleId) {
@@ -259,7 +303,7 @@ export default function Page() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button onClick={printScale} variant="outline">
+            <Button onClick={handlePrint} variant="outline">
               <PrinterIcon className="mr-2 h-4 w-4" />
               Imprimir
             </Button>
@@ -313,54 +357,55 @@ export default function Page() {
         </div>
 
         {/* Conteúdo da Escala */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Participações da Escala</CardTitle>
-            <CardDescription>
+        <Card className="print:shadow-none print:border-none" id="print-scale">
+          <CardHeader className="print:text-center print:border-b print:pb-4">
+            <CardTitle className="print:text-xl">{scale.nome}</CardTitle>
+            <CardDescription className="print:hidden">
               Visualização detalhada de todas as participações organizadas por data
             </CardDescription>
+            {/* Cabeçalho adicional para impressão */}
+            <div className="hidden print:block print:mt-2">
+              <div className="text-lg font-semibold">{scale.departamento?.organizacao?.nome}</div>
+              <div className="text-base">{scale.departamento?.nome}</div>
+              <div className="text-sm text-gray-600 mt-2">
+                Impresso em {format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+              </div>
+            </div>
           </CardHeader>
-          <CardContent>
-            <div id="scale-content">
+          <CardContent className="print:p-4">
+            <div>
               {participations.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  <Calendar className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                  <p className="text-lg font-medium">Nenhuma participação cadastrada</p>
-                  <p className="text-sm">Esta escala ainda não possui participações</p>
+                <div className="text-center py-12 text-muted-foreground print:py-8">
+                  <Calendar className="h-16 w-16 mx-auto mb-4 opacity-50 print:h-8 print:w-8 print:mb-2" />
+                  <p className="text-lg font-medium print:text-base">Nenhuma participação cadastrada</p>
+                  <p className="text-sm print:text-xs">Esta escala ainda não possui participações</p>
                 </div>
               ) : (
-                <div className="space-y-6">
-                  {/* Cabeçalho da Escala para impressão */}
-                  <div className="text-center border-b pb-4 print:block hidden">
-                    <h3 className="text-xl font-semibold">{scale.departamento?.organizacao?.nome}</h3>
-                    <h4 className="text-lg">{scale.departamento?.nome}</h4>
-                    <p className="text-md font-medium">{scale.nome}</p>
-                  </div>
-                  
+                <div className="space-y-6 print:space-y-4">
                   {/* Participações Agrupadas por Dia */}
-                  <div className="space-y-6">
+                  <div className="space-y-6 print:space-y-4">
                     {Object.entries(groupedParticipations).map(([dayDate, dayParticipations]) => (
-                      <div key={dayDate} className="space-y-3">
-                        <h4 className="font-semibold text-lg border-b border-muted pb-2 flex items-center gap-2">
-                          <Clock className="h-5 w-5" />
+                      <div key={dayDate} className="space-y-3 print:space-y-2 print:break-inside-avoid">
+                        <h4 className="font-semibold text-lg border-b border-muted pb-2 flex items-center gap-2 print:text-base print:pb-1 print:border-gray-300">
+                          <Clock className="h-5 w-5 print:h-4 print:w-4" />
                           {dayDate}
                         </h4>
                         
-                        {/* Visualização em Cards para mobile */}
-                        <div className="block md:hidden space-y-3">
+                        {/* Visualização em Cards para mobile - ocultar na impressão */}
+                        <div className="block md:hidden print:hidden space-y-3">
                           {dayParticipations.map((participation) => (
                             <Card key={participation.id}>
                               <CardContent className="p-4">
                                 <div className="flex items-center gap-3">
                                   <Avatar className="h-10 w-10">
                                     <AvatarFallback className="bg-blue-100 text-blue-600">
-                                      {getInitials(participation.integrante?.nome || "??")}
+                                      {getInitials(participation.integrantes?.nome || "??")}
                                     </AvatarFallback>
                                   </Avatar>
                                   <div className="flex-1">
-                                    <div className="font-medium">{participation.integrante?.nome}</div>
+                                    <div className="font-medium">{participation.integrantes?.nome}</div>
                                     <div className="text-sm text-blue-600">
-                                      {participation.especializacao?.nome}
+                                      {participation.especializacoes?.nome}
                                     </div>
                                     {participation.observacao && (
                                       <div className="text-xs text-muted-foreground mt-1">
@@ -374,36 +419,42 @@ export default function Page() {
                           ))}
                         </div>
 
-                        {/* Visualização em Tabela para desktop */}
-                        <div className="hidden md:block">
-                          <Table>
+                        {/* Visualização em Tabela para desktop e impressão */}
+                        <div className="hidden md:block print:block">
+                          <Table className="print:border-collapse print:w-full">
                             <TableHeader>
-                              <TableRow>
-                                <TableHead>Integrante</TableHead>
-                                <TableHead>Especialização</TableHead>
-                                <TableHead>Observações</TableHead>
+                              <TableRow className="print:border-b print:border-gray-300">
+                                <TableHead className="print:border print:border-gray-300 print:bg-gray-50 print:p-2 print:font-semibold">
+                                  Integrante
+                                </TableHead>
+                                <TableHead className="print:border print:border-gray-300 print:bg-gray-50 print:p-2 print:font-semibold">
+                                  Especialização
+                                </TableHead>
+                                <TableHead className="print:border print:border-gray-300 print:bg-gray-50 print:p-2 print:font-semibold">
+                                  Observações
+                                </TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {dayParticipations.map((participation) => (
-                                <TableRow key={participation.id}>
-                                  <TableCell>
-                                    <div className="flex items-center gap-3">
-                                      <Avatar className="h-8 w-8">
-                                        <AvatarFallback className="bg-blue-100 text-blue-600 text-xs">
-                                          {getInitials(participation.integrante?.nome || "??")}
+                              {dayParticipations && dayParticipations.map((participation) => (
+                                <TableRow key={participation.id} className="print:border-b print:border-gray-200">
+                                  <TableCell className="print:border print:border-gray-300 print:p-2">
+                                    <div className="flex items-center gap-3 print:gap-2">
+                                      <Avatar className="h-8 w-8 print:h-6 print:w-6">
+                                        <AvatarFallback className="bg-blue-100 text-blue-600 text-xs print:text-xs print:bg-gray-200 print:text-gray-700">
+                                          {getInitials(participation.integrantes?.nome || "??")}
                                         </AvatarFallback>
                                       </Avatar>
-                                      <span className="font-medium">{participation.integrante?.nome}</span>
+                                      <span className="font-medium print:text-sm">{participation.integrantes?.nome}</span>
                                     </div>
                                   </TableCell>
-                                  <TableCell>
-                                    <Badge variant="secondary">
-                                      {participation.especializacao?.nome}
+                                  <TableCell className="print:border print:border-gray-300 print:p-2">
+                                    <Badge variant="secondary" className="print:bg-gray-200 print:text-gray-800 print:text-xs print:px-2 print:py-1 print:rounded">
+                                      {participation.especializacoes?.nome}
                                     </Badge>
                                   </TableCell>
-                                  <TableCell>
-                                    <span className="text-sm text-muted-foreground">
+                                  <TableCell className="print:border print:border-gray-300 print:p-2">
+                                    <span className="text-sm text-muted-foreground print:text-xs print:text-gray-600">
                                       {participation.observacao || "—"}
                                     </span>
                                   </TableCell>

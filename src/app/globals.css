@@ -120,3 +120,52 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Estilos específicos para impressão */
+@media print {
+  @page {
+    margin: 1cm;
+    size: A4;
+  }
+  
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  
+  .print-break-before {
+    page-break-before: always;
+  }
+  
+  .print-break-after {
+    page-break-after: always;
+  }
+  
+  .print-break-inside-avoid {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  
+  /* Ocultar elementos desnecessários na impressão */
+  nav, header, .no-print, button:not(.print-button), .print-hide {
+    display: none !important;
+  }
+  
+  /* Garantir que tabelas quebrem de página corretamente */
+  table {
+    page-break-inside: auto;
+  }
+  
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+  
+  thead {
+    display: table-header-group;
+  }
+  
+  tfoot {
+    display: table-footer-group;
+  }
+}
