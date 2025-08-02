@@ -48,6 +48,8 @@ import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { EscalaFolgaMember } from "@/types/escala-folgas";
 import { useAuth } from "@/contexts/AuthContext";
+import { useOrganization } from "@/contexts/OrganizationContext";
+import { ObservacaoTemplate } from "@/types/observacoes";
 import Link from "next/link";
 import CalendarTable from "@/components/calendar/CalendarTable";
 
@@ -98,12 +100,16 @@ const DAYS_OF_WEEK = [
 
 export default function FolgasCreatePage() {
   const { userId } = useAuth();
-  const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const { selectedOrganization } = useOrganization();
   const [departments, setDepartments] = useState<Department[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [specializations, setSpecializations] = useState<Specialization[]>([]);
-  const [selectedOrganization, setSelectedOrganization] = useState("");
+  const [observacaoTemplates, setObservacaoTemplates] = useState<
+    ObservacaoTemplate[]
+  >([]);
   const [selectedDepartment, setSelectedDepartment] = useState("");
+  const [selectedObservacaoTemplate, setSelectedObservacaoTemplate] =
+    useState("none");
   const [scaleName, setScaleName] = useState("");
   const [scaleMembers, setScaleMembers] = useState<EscalaFolgaMember[]>([]);
   const [loading, setLoading] = useState(false);
@@ -237,16 +243,16 @@ export default function FolgasCreatePage() {
     return "#f3f4f6"; // cor padrão se não tiver especialização
   };
 
-  const fetchOrganizations = async () => {
-    if (!userId) return;
-
+  const fetchObservacaoTemplates = async (organizationId: string) => {
     const { data, error } = await supabase
-      .from("organizacoes")
+      .from("observacoes_templates")
       .select("*")
-      .eq("user_id", userId);
+      .eq("organizacao_id", organizationId)
+      .eq("ativo", true)
+      .order("nome");
 
     if (!error && data) {
-      setOrganizations(data);
+      setObservacaoTemplates(data);
     }
   };
 
@@ -313,16 +319,12 @@ export default function FolgasCreatePage() {
   };
 
   useEffect(() => {
-    if (userId) {
-      fetchOrganizations();
-    }
-  }, [userId]);
-
-  useEffect(() => {
     if (selectedOrganization) {
-      fetchDepartments(selectedOrganization);
-      fetchSpecializations(selectedOrganization);
+      fetchDepartments(selectedOrganization.id);
+      fetchSpecializations(selectedOrganization.id);
+      fetchObservacaoTemplates(selectedOrganization.id);
       setSelectedDepartment("");
+      setSelectedObservacaoTemplate("none");
       setDepartments([]);
       setMembers([]);
       setScaleMembers([]);
@@ -546,6 +548,10 @@ export default function FolgasCreatePage() {
         .insert({
           nome: scaleName,
           departamento_id: selectedDepartment,
+          observacoes_template_id:
+            selectedObservacaoTemplate === "none"
+              ? null
+              : selectedObservacaoTemplate,
         })
         .select()
         .single();
@@ -619,6 +625,32 @@ export default function FolgasCreatePage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const getObservacoesHtml = () => {
+    if (!selectedObservacaoTemplate || selectedObservacaoTemplate === "none") {
+      // Observações padrão se nenhum template for selecionado
+      //   return `
+      //     <div class="obs-item">1. O militar que estiver na copa das panelas é o responsável pelo lixo da cozinha;</div>
+      //     <div class="obs-item">2. O horário de chegada dos militares ao <strong>RANCHO</strong> é às 6:45 horas;</div>
+      //     <div class="obs-item">3. O militar que estiver <strong>entrando de serviço</strong> chegará obrigatoriamente às 06:00 horas pronto;</div>
+      //     <div class="obs-item">4. A troca de serviço poderá ser autorizada por um <strong>graduado</strong>;</div>
+      //   `;
+      return;
+    }
+
+    const template = observacaoTemplates.find(
+      (t) => t.id === selectedObservacaoTemplate
+    );
+    if (!template) return "";
+
+    return template.observacoes
+      .sort((a, b) => a.ordem - b.ordem)
+      .map(
+        (obs, index) =>
+          `<div class="obs-item">${index + 1}. ${obs.texto};</div>`
+      )
+      .join("");
   };
 
   const printScale = () => {
@@ -792,8 +824,7 @@ export default function FolgasCreatePage() {
         <div class="header">
           <div class="hospital-name">${
             selectedOrganization
-              ? organizations.find((o) => o.id === selectedOrganization)
-                  ?.nome || "HOSPITAL"
+              ? selectedOrganization?.nome || "HOSPITAL"
               : "HOSPITAL"
           }</div>
           <div class="scale-title">ESCALA DE SERVIÇO DO SETOR DE ${
@@ -823,10 +854,7 @@ export default function FolgasCreatePage() {
 
         <div class="obs-section">
           <div class="obs-title">OBS:</div>
-          <div class="obs-item">1. O militar que estiver na copa das panelas é o responsável pelo lixo da cozinha;</div>
-          <div class="obs-item">2. O horário de chegada dos militares ao <strong>RANCHO</strong> é às 6:45 horas;</div>
-          <div class="obs-item">3. O militar que estiver <strong>entrando de serviço</strong> chegará obrigatoriamente às 06:00 horas pronto;</div>
-          <div class="obs-item">4. A troca de serviço poderá ser autorizada por um <strong>graduado</strong>;</div>
+          ${getObservacoesHtml()}
         </div>
 
         <div class="footer">
@@ -842,12 +870,7 @@ export default function FolgasCreatePage() {
             <div class="signature-line"></div>
             <div style="margin-top: 5px; font-weight: bold;">
               RESPONSÁVEL PELA ESCALA - 1º Ten<br>
-              Aprovisionador do ${
-                selectedOrganization
-                  ? organizations.find((o) => o.id === selectedOrganization)
-                      ?.nome || "Hospital"
-                  : "Hospital"
-              }
+              Aprovisionador do ${selectedOrganization?.nome || "Hospital"}
             </div>
           </div>
         </div>
@@ -870,6 +893,35 @@ export default function FolgasCreatePage() {
   const numberOfPeople = scaleMembers.length;
   const numberOfOnLeave = numberOfPeople > 0 ? numberOfPeople - 1 : 0;
   const numberOfWorking = numberOfPeople > 0 ? 1 : 0;
+
+  if (!selectedOrganization) {
+    return (
+      <div className="flex flex-1 flex-col gap-6 p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">
+              Gerar Escala Preta e Vermelha
+            </h1>
+            <p className="text-muted-foreground">
+              Selecione uma organização para continuar
+            </p>
+          </div>
+        </div>
+        <Card className="p-12">
+          <div className="text-center">
+            <Users className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+            <h3 className="text-lg font-medium mb-2">
+              Nenhuma organização selecionada
+            </h3>
+            <p className="text-muted-foreground mb-4">
+              Selecione uma organização no menu superior para começar a criar
+              escalas
+            </p>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <Suspense
@@ -925,29 +977,18 @@ export default function FolgasCreatePage() {
                   onChange={(e) => setScaleName(e.target.value)}
                 />
               </div>
-              {/* Seleção de Organização e Departamento */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Organização</label>
-                <Select
-                  value={selectedOrganization}
-                  onValueChange={setSelectedOrganization}
-                  disabled={scaleName.trim() === "" || loading}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione uma organização" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {organizations.map((org) => (
-                      <SelectItem key={org.id} value={org.id}>
-                        <div className="flex items-center gap-2">
-                          <Building2 className="h-4 w-4" />
-                          {org.nome} ({org.tipo})
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+
+              {/* Banner da Organização Selecionada */}
+              {selectedOrganization && (
+                <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="h-4 w-4 text-blue-600" />
+                    <span className="text-sm font-medium text-blue-800">
+                      Organização: {selectedOrganization.nome}
+                    </span>
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <label className="text-sm font-medium">Departamento</label>
@@ -963,6 +1004,35 @@ export default function FolgasCreatePage() {
                     {departments.map((dept) => (
                       <SelectItem key={dept.id} value={dept.id}>
                         {dept.nome} ({dept.tipo_departamento})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Seleção de Template de Observações */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  Template de Observações
+                </label>
+                <Select
+                  value={selectedObservacaoTemplate}
+                  onValueChange={setSelectedObservacaoTemplate}
+                  disabled={!selectedOrganization}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um template (opcional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum template</SelectItem>
+                    {observacaoTemplates.map((template) => (
+                      <SelectItem key={template.id} value={template.id}>
+                        <div className="flex flex-col">
+                          <span>{template.nome}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {template.observacoes.length} observações
+                          </span>
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -1442,8 +1512,8 @@ export default function FolgasCreatePage() {
                 {scaleName || "Escala de Folgas"}
               </div>
               <div className="print-subtitle">
-                {organizations.find((o) => o.id === selectedOrganization)?.nome}{" "}
-                - {departments.find((d) => d.id === selectedDepartment)?.nome}
+                {selectedOrganization?.nome} -{" "}
+                {departments.find((d) => d.id === selectedDepartment)?.nome}
               </div>
               <div className="print-info">
                 Período: {format(scaleGeneration.startDate, "dd/MM/yyyy")} a{" "}
@@ -1597,8 +1667,7 @@ export default function FolgasCreatePage() {
               }}
             >
               <div style={{ marginBottom: "20px" }}>
-                {organizations.find((o) => o.id === selectedOrganization)?.nome}{" "}
-                em{" "}
+                {selectedOrganization?.nome} em{" "}
                 {format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
                 .
               </div>

@@ -1,7 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { Calendar, GalleryVerticalEnd, SquareTerminal } from "lucide-react";
+import {
+  Calendar,
+  GalleryVerticalEnd,
+  SquareTerminal,
+  Settings,
+} from "lucide-react";
 
 import { NavMain } from "@/components/sidebar/nav-main";
 import { TeamSwitcher } from "@/components/sidebar/team-switcher";
@@ -112,6 +117,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 isActive: pathname.startsWith("/scales/list"),
               },
             ],
+          },
+        ],
+      },
+      {
+        title: "Configurações",
+        url: "#",
+        icon: Settings,
+        isActive: pathname.startsWith("/observacoes"),
+        items: [
+          {
+            title: "Observações",
+            url: "/observacoes/list",
+            isActive: pathname.startsWith("/observacoes"),
           },
         ],
       },
