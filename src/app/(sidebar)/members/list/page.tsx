@@ -56,6 +56,8 @@ import FilterBar from "@/components/filters/FilterBar";
 import Pagination from "@/components/pagination/Pagination";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { NavigationButton } from "@/components/ui/navigation-button";
+import { NavigationLink } from "@/components/ui/navigation-link";
 
 interface Organization {
   id: string;
@@ -409,12 +411,10 @@ export default function Page() {
               Visualize e gerencie todos os integrantes das suas organizações
             </p>
           </div>
-          <Link href="/members/create">
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Novo Integrante
-            </Button>
-          </Link>
+          <NavigationButton href="/members/create">
+            <Plus className="h-4 w-4 mr-2" />
+            Novo Integrante
+          </NavigationButton>
         </div>
 
         {/* Filtros */}
@@ -608,11 +608,13 @@ export default function Page() {
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex gap-1 justify-end">
-                              <Link href={`/escalas/members?edit=${member.id}`}>
-                                <Button variant="outline" size="sm">
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                              </Link>
+                              <NavigationButton
+                                href={`/members/edit/${member.id}`}
+                                variant="outline"
+                                size="sm"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </NavigationButton>
                               {/* <Button
                                 variant="outline"
                                 size="sm"

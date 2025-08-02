@@ -32,6 +32,8 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { NavigationLink } from "@/components/ui/navigation-link";
+import { NavigationButton } from "@/components/ui/navigation-button";
 
 interface Organization {
   id: string;
@@ -375,11 +377,9 @@ export default function Page() {
       <div className="flex flex-1 flex-col gap-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link href="/members/list">
-              <Button variant="outline" size="sm">
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-            </Link>
+            <NavigationButton href="/members/list" variant="outline" size="sm">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+            </NavigationButton>
             <div>
               <h1 className="text-3xl font-bold">Gerenciar Integrantes</h1>
               <p className="text-muted-foreground">
