@@ -101,23 +101,23 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               },
             ],
           },
-          {
-            title: "Escala Manual",
-            url: "#",
-            isActive: pathname.startsWith("/scales"),
-            items: [
-              {
-                title: "Criar",
-                url: "/scales/create",
-                isActive: pathname.startsWith("/scales/create"),
-              },
-              {
-                title: "Listar",
-                url: "/scales/list",
-                isActive: pathname.startsWith("/scales/list"),
-              },
-            ],
-          },
+          // {
+          //   title: "Escala Manual",
+          //   url: "#",
+          //   isActive: pathname.startsWith("/scales"),
+          //   items: [
+          //     {
+          //       title: "Criar",
+          //       url: "/scales/create",
+          //       isActive: pathname.startsWith("/scales/create"),
+          //     },
+          //     {
+          //       title: "Listar",
+          //       url: "/scales/list",
+          //       isActive: pathname.startsWith("/scales/list"),
+          //     },
+          //   ],
+          // },
         ],
       },
       {
