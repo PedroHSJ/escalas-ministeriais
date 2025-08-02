@@ -760,7 +760,7 @@ export default function FolgasViewPage() {
         </div>
       }
     >
-      <div className="flex flex-1 flex-col gap-4 p-4">
+      <div className="flex flex-1 flex-col gap-4">
         {/* Cabeçalho */}
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-4">

@@ -369,7 +369,7 @@ export default function Page() {
         </div>
       }
     >
-      <div className="flex flex-1 flex-col gap-6 p-6">
+      <div className="flex flex-1 flex-col gap-6">
         {/* Cabeçalho */}
         <div className="flex items-center justify-between">
           <div>

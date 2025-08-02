@@ -56,7 +56,7 @@ export default function RootLayout({
                     </div>
                   }
                 >
-                  {children}
+                  <div className="p-6">{children}</div>
                 </Suspense>
               </SidebarInset>
             </SidebarProvider>

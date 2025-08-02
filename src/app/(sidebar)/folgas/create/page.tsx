@@ -10,6 +10,14 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -42,6 +50,7 @@ import {
   Calculator,
   PrinterIcon,
   ArrowLeft,
+  Download,
 } from "lucide-react";
 import { format, addDays, startOfWeek } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -117,6 +126,12 @@ export default function FolgasCreatePage() {
     null
   );
   const [memberOnlyForLeaveCount, setMemberOnlyForLeaveCount] = useState(false);
+
+  // Estados para importação de escalas
+  const [availableScales, setAvailableScales] = useState<any[]>([]);
+  const [selectedScaleToImport, setSelectedScaleToImport] = useState("");
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [previewImportData, setPreviewImportData] = useState<any[]>([]);
 
   // Configurações de geração
   const [scaleGeneration, setScaleGeneration] = useState<ScaleGeneration>({
@@ -319,6 +334,165 @@ export default function FolgasCreatePage() {
     }
   };
 
+  // Função para gerar prévia dos dados de importação
+  const generateImportPreview = async (scaleId: string) => {
+    if (!scaleId) {
+      setPreviewImportData([]);
+      return;
+    }
+
+    try {
+      const { data: participacoes, error } = await supabase
+        .from("escala_folgas_participacoes")
+        .select(
+          `
+          integrante_id,
+          folgas_atuais,
+          apenas_contabiliza_folgas,
+          integrante:integrantes(
+            id,
+            nome
+          )
+        `
+        )
+        .eq("escala_folga_id", scaleId);
+
+      if (error) throw error;
+
+      const preview =
+        participacoes?.map((p: any) => ({
+          id: p.integrante.id,
+          nome: p.integrante.nome,
+          folgasAtuais: p.folgas_atuais,
+          apenasContabilizaFolgas: p.apenas_contabiliza_folgas,
+          jaAdicionado: scaleMembers.some((m) => m.id === p.integrante.id),
+        })) || [];
+
+      setPreviewImportData(preview);
+    } catch (error) {
+      console.error("Erro ao gerar prévia:", error);
+      setPreviewImportData([]);
+    }
+  };
+
+  // Função para buscar escalas disponíveis para importação
+  const fetchAvailableScales = async (departmentId: string) => {
+    const { data, error } = await supabase
+      .from("escalas_folgas")
+      .select(
+        `
+        id,
+        nome,
+        created_at,
+        departamento_id
+      `
+      )
+      .eq("departamento_id", departmentId)
+      .order("created_at", { ascending: false });
+
+    if (!error && data) {
+      setAvailableScales(data);
+    }
+  };
+
+  // Função para importar dados de folgas de uma escala anterior
+  const importScaleData = async () => {
+    if (!selectedScaleToImport) {
+      toast.error("Selecione uma escala para importar");
+      return;
+    }
+
+    try {
+      // Buscar participações da escala selecionada
+      const { data: participacoes, error } = await supabase
+        .from("escala_folgas_participacoes")
+        .select(
+          `
+          integrante_id,
+          folgas_atuais,
+          apenas_contabiliza_folgas,
+          integrante:integrantes(
+            id,
+            nome,
+            integrante_especializacoes(
+              especializacoes(
+                id,
+                nome
+              ),
+              nivel
+            )
+          )
+        `
+        )
+        .eq("escala_folga_id", selectedScaleToImport);
+
+      if (error) throw error;
+
+      if (!participacoes || participacoes.length === 0) {
+        toast.error("Nenhum dado encontrado na escala selecionada");
+        return;
+      }
+
+      // Processar e adicionar os integrantes à escala atual
+      const importedMembers: EscalaFolgaMember[] = [];
+
+      participacoes.forEach((participacao: any) => {
+        if (participacao.integrante) {
+          // Verificar se o integrante já foi adicionado
+          if (!scaleMembers.find((m) => m.id === participacao.integrante.id)) {
+            // Buscar especialização principal do integrante
+            const especializacaoPrincipal =
+              participacao.integrante.integrante_especializacoes?.[0];
+
+            const newMember: EscalaFolgaMember = {
+              id: participacao.integrante.id,
+              nome: participacao.integrante.nome,
+              folgasIniciais: participacao.folgas_atuais, // Usar folgas atuais como iniciais para nova escala
+              folgasAtuais: participacao.folgas_atuais,
+              posicaoAtual: importedMembers.length + scaleMembers.length + 1,
+              ativo: true,
+              especializacaoId: especializacaoPrincipal?.especializacoes?.id,
+              especializacaoNome:
+                especializacaoPrincipal?.especializacoes?.nome,
+              apenasContabilizaFolgas:
+                participacao.apenas_contabiliza_folgas || false,
+              importadoDeEscala: selectedScaleToImport, // Marcar que foi importado
+            };
+
+            importedMembers.push(newMember);
+          }
+        }
+      });
+
+      if (importedMembers.length === 0) {
+        toast.error(
+          "Todos os integrantes da escala selecionada já foram adicionados"
+        );
+        return;
+      }
+
+      // Adicionar os membros importados ao estado atual
+      setScaleMembers((prev) => [...prev, ...importedMembers]);
+      setGeneratedSchedule([]);
+      setShowImportDialog(false);
+      setSelectedScaleToImport("");
+      setPreviewImportData([]);
+
+      toast.success(
+        `${importedMembers.length} integrante(s) importado(s) com sucesso!`,
+        {
+          description:
+            "Os valores de folgas foram preservados da escala anterior.",
+        }
+      );
+    } catch (error) {
+      console.error("Erro ao importar dados da escala:", error);
+      toast.error("Erro ao importar dados da escala", {
+        description: "Tente novamente em alguns instantes.",
+      });
+    }
+  };
+
   useEffect(() => {
     if (selectedOrganization) {
       fetchDepartments(selectedOrganization.id);
@@ -337,9 +511,12 @@ export default function FolgasCreatePage() {
   useEffect(() => {
     if (selectedDepartment) {
       fetchMembers(selectedDepartment);
+      fetchAvailableScales(selectedDepartment); // Buscar escalas disponíveis para importação
       setScaleMembers([]);
       setGeneratedSchedule([]);
       setSelectedMemberToAdd(null);
+      setAvailableScales([]);
+      setSelectedScaleToImport("");
     }
   }, [selectedDepartment]);
 
@@ -986,7 +1163,7 @@ export default function FolgasCreatePage() {
         </div>
       }
     >
-      <div className="flex flex-1 flex-col gap-6 p-6">
+      <div className="flex flex-1 flex-col gap-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link href="/members/list">
@@ -1208,7 +1385,20 @@ export default function FolgasCreatePage() {
               {/* Adicionar Integrantes */}
               {selectedDepartment && (
                 <div className="border-t pt-4">
-                  <h4 className="font-medium mb-3">Adicionar Integrante</h4>
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-medium">Adicionar Integrante</h4>
+                    {availableScales.length > 0 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowImportDialog(true)}
+                        className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Importar de Escala Anterior
+                      </Button>
+                    )}
+                  </div>
 
                   {members.length === 0 ? (
                     <p className="text-sm text-muted-foreground">
@@ -1562,11 +1752,25 @@ export default function FolgasCreatePage() {
                                 Apenas Folgas
                               </Badge>
                             )}
+                            {member.importadoDeEscala && (
+                              <Badge
+                                variant="secondary"
+                                className="bg-blue-100 text-blue-700 border-blue-300"
+                              >
+                                Importado
+                              </Badge>
+                            )}
                           </div>
                           {member.apenasContabilizaFolgas && (
-                            <p className="text-xs text-red-700 mt-1">
+                            <p className="text-xs text-yellow-700 mt-1">
                               🏖️ Este integrante está de férias/licença e apenas
                               contabiliza folgas
+                            </p>
+                          )}
+                          {member.importadoDeEscala && (
+                            <p className="text-xs text-blue-700 mt-1">
+                              📥 Dados importados de escala anterior (folgas
+                              preservadas)
                             </p>
                           )}
 
@@ -1876,6 +2080,137 @@ export default function FolgasCreatePage() {
             </div>
           </div>
         )}
+
+        {/* Dialog para Importação de Escalas */}
+        <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Download className="h-5 w-5" />
+                Importar Dados de Escala Anterior
+              </DialogTitle>
+              <DialogDescription>
+                Selecione uma escala anterior para importar os dados de folgas
+                dos integrantes. Os valores de folgas atuais serão usados como
+                folgas iniciais na nova escala.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  Escala para Importar
+                </label>
+                <Select
+                  value={selectedScaleToImport}
+                  onValueChange={(value) => {
+                    setSelectedScaleToImport(value);
+                    generateImportPreview(value);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione uma escala anterior" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableScales.map((scale) => (
+                      <SelectItem key={scale.id} value={scale.id}>
+                        <div className="flex flex-col">
+                          <span>{scale.nome}</span>
+                          <span className="text-xs text-muted-foreground">
+                            Criada em:{" "}
+                            {format(
+                              new Date(scale.created_at),
+                              "dd/MM/yyyy 'às' HH:mm",
+                              { locale: ptBR }
+                            )}
+                          </span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {selectedScaleToImport && (
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded">
+                  <p className="text-sm text-blue-800">
+                    <strong>Atenção:</strong> Os integrantes da escala
+                    selecionada serão adicionados automaticamente com suas
+                    folgas atuais como folgas iniciais da nova escala.
+                  </p>
+                </div>
+              )}
+
+              {previewImportData.length > 0 && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">
+                    Prévia dos Dados a Importar (
+                    {previewImportData.filter((p) => !p.jaAdicionado).length}{" "}
+                    novos integrantes)
+                  </label>
+                  <div className="max-h-40 overflow-y-auto border rounded p-2 bg-gray-50">
+                    {previewImportData.map((item) => (
+                      <div
+                        key={item.id}
+                        className={`flex justify-between items-center py-1 px-2 rounded text-sm ${
+                          item.jaAdicionado
+                            ? "bg-gray-200 text-gray-500"
+                            : "bg-white"
+                        }`}
+                      >
+                        <span
+                          className={item.jaAdicionado ? "line-through" : ""}
+                        >
+                          {item.nome}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs">
+                            {item.folgasAtuais} folgas
+                          </span>
+                          {item.apenasContabilizaFolgas && (
+                            <Badge variant="secondary" className="text-xs">
+                              Só folgas
+                            </Badge>
+                          )}
+                          {item.jaAdicionado && (
+                            <Badge variant="outline" className="text-xs">
+                              Já adicionado
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowImportDialog(false);
+                  setSelectedScaleToImport("");
+                  setPreviewImportData([]);
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={importScaleData}
+                disabled={
+                  !selectedScaleToImport ||
+                  previewImportData.filter((p) => !p.jaAdicionado).length === 0
+                }
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Importar{" "}
+                {previewImportData.filter((p) => !p.jaAdicionado).length}{" "}
+                Integrante(s)
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </Suspense>
   );

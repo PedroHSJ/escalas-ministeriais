@@ -362,7 +362,7 @@ export default function Page() {
 
   if (!selectedOrganization) {
     return (
-      <div className="flex flex-1 flex-col gap-6 p-6">
+      <div className="flex flex-1 flex-col gap-6">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">Lista de Integrantes</h1>
@@ -400,7 +400,7 @@ export default function Page() {
         </div>
       }
     >
-      <div className="flex flex-1 flex-col gap-6 p-6">
+      <div className="flex flex-1 flex-col gap-6">
         {/* Cabeçalho */}
         <div className="flex items-center justify-between">
           <div>
@@ -502,13 +502,13 @@ export default function Page() {
                                 <Edit className="h-4 w-4" />
                               </Button>
                             </Link>
-                            <Button
+                            {/* <Button
                               variant="outline"
                               size="sm"
                               onClick={() => openDeleteDialog(member)}
                             >
                               <Trash2 className="h-4 w-4" />
-                            </Button>
+                            </Button> */}
                           </div>
                         </div>
                         {member.especializacoes &&
@@ -613,13 +613,13 @@ export default function Page() {
                                   <Edit className="h-4 w-4" />
                                 </Button>
                               </Link>
-                              <Button
+                              {/* <Button
                                 variant="outline"
                                 size="sm"
                                 onClick={() => openDeleteDialog(member)}
                               >
                                 <Trash2 className="h-4 w-4" />
-                              </Button>
+                              </Button> */}
                             </div>
                           </TableCell>
                         </TableRow>

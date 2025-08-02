@@ -60,6 +60,7 @@ export interface EscalaFolgaMember {
   especializacaoId?: string;
   especializacaoNome?: string;
   apenasContabilizaFolgas?: boolean; // Para integrantes de férias/licença que só contabilizam folgas
+  importadoDeEscala?: string; // ID da escala de onde foi importado (opcional)
 }
 
 export interface EscalaFolgaAssignment {
