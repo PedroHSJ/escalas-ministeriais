@@ -2,15 +2,35 @@
 import { useState, useEffect, Suspense } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Users, Plus, Edit, Trash2, Building2, User, ArrowLeft, List } from "lucide-react";
+import {
+  Users,
+  Edit,
+  Trash2,
+  Building2,
+  User,
+  ArrowLeft,
+  List,
+} from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Organization {
   id: string;
@@ -44,42 +64,32 @@ interface Specialization {
 
 export default function Page() {
   const searchParams = useSearchParams();
-  const editId = searchParams.get('edit');
-  
-  const [userId, setUserId] = useState("");
+  const editId = searchParams.get("edit");
+
+  const { userId } = useAuth();
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [specializations, setSpecializations] = useState<Specialization[]>([]);
   const [selectedOrganization, setSelectedOrganization] = useState("");
   const [selectedDepartment, setSelectedDepartment] = useState("");
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   // Form states
   const [memberName, setMemberName] = useState("");
-  const [selectedSpecializations, setSelectedSpecializations] = useState<string[]>([]);
-
-  const fetchSession = async () => {
-    if(process.env.NODE_ENV === "development") {
-      setUserId("d58c420f-7db1-42e9-b040-e1d038ef79af");
-      return;
-    }
-    const { data } = await supabase.auth.getSession();
-    if (data.session?.user) {
-      setUserId(data.session.user.id);
-    } 
-  };
+  const [selectedSpecializations, setSelectedSpecializations] = useState<
+    string[]
+  >([]);
 
   const fetchOrganizations = async () => {
     if (!userId) return;
-    
+
     const { data, error } = await supabase
-      .from('organizacoes')
-      .select('*')
-      .eq('user_id', userId);
-    
+      .from("organizacoes")
+      .select("*")
+      .eq("user_id", userId);
+
     if (!error && data) {
       setOrganizations(data);
     }
@@ -87,10 +97,10 @@ export default function Page() {
 
   const fetchDepartments = async (organizationId: string) => {
     const { data, error } = await supabase
-      .from('departamentos')
-      .select('*')
-      .eq('organizacao_id', organizationId);
-    
+      .from("departamentos")
+      .select("*")
+      .eq("organizacao_id", organizationId);
+
     if (!error && data) {
       setDepartments(data);
     }
@@ -98,8 +108,9 @@ export default function Page() {
 
   const fetchMembers = async (departmentId: string) => {
     const { data, error } = await supabase
-      .from('integrantes')
-      .select(`
+      .from("integrantes")
+      .select(
+        `
         *,
         integrante_especializacoes (
           especializacoes (
@@ -108,35 +119,40 @@ export default function Page() {
           ),
           nivel
         )
-      `)
-      .eq('departamento_id', departmentId)
-      .order('nome');
-    
+      `
+      )
+      .eq("departamento_id", departmentId)
+      .order("nome");
+
     if (!error && data) {
-      const membersWithSpecializations = data.map(member => ({
+      const membersWithSpecializations = data.map((member) => ({
         ...member,
-        especializacoes: member.integrante_especializacoes?.map((ie: any) => ({
-          id: ie.especializacoes.id,
-          nome: ie.especializacoes.nome,
-          nivel: ie.nivel
-        })) || []
+        especializacoes:
+          member.integrante_especializacoes?.map((ie: any) => ({
+            id: ie.especializacoes.id,
+            nome: ie.especializacoes.nome,
+            nivel: ie.nivel,
+          })) || [],
       }));
       setMembers(membersWithSpecializations);
     }
   };
 
   const fetchSpecializations = async (organizationId: string) => {
+    console.log("Fetching specializations for organization:", organizationId);
     const { data, error } = await supabase
-      .from('especializacoes')
-      .select(`
+      .from("especializacoes")
+      .select(
+        `
         id,
         nome,
         tipos_especializacao!inner (
           organizacao_id
         )
-      `)
-      .eq('tipos_especializacao.organizacao_id', organizationId);
-    
+      `
+      )
+      .eq("tipos_especializacao.organizacao_id", organizationId);
+
     if (!error && data) {
       setSpecializations(data);
     }
@@ -145,8 +161,9 @@ export default function Page() {
   // Função para buscar membro por ID para edição
   const fetchMemberById = async (memberId: string) => {
     const { data, error } = await supabase
-      .from('integrantes')
-      .select(`
+      .from("integrantes")
+      .select(
+        `
         *,
         departamentos (
           id,
@@ -159,18 +176,20 @@ export default function Page() {
           ),
           nivel
         )
-      `)
-      .eq('id', memberId)
+      `
+      )
+      .eq("id", memberId)
       .single();
-    
+
     if (!error && data) {
       const memberWithSpecializations = {
         ...data,
-        especializacoes: data.integrante_especializacoes?.map((ie: any) => ({
-          id: ie.especializacoes.id,
-          nome: ie.especializacoes.nome,
-          nivel: ie.nivel
-        })) || []
+        especializacoes:
+          data.integrante_especializacoes?.map((ie: any) => ({
+            id: ie.especializacoes.id,
+            nome: ie.especializacoes.nome,
+            nivel: ie.nivel,
+          })) || [],
       };
 
       // Configurar os selects automaticamente
@@ -183,10 +202,6 @@ export default function Page() {
     }
     return null;
   };
-
-  useEffect(() => {
-    fetchSession();
-  }, []);
 
   useEffect(() => {
     if (userId) {
@@ -214,9 +229,9 @@ export default function Page() {
   // Effect para carregar membro para edição
   useEffect(() => {
     if (editId && userId) {
-      fetchMemberById(editId).then(member => {
+      fetchMemberById(editId).then((member) => {
         if (member) {
-          openDialog(member);
+          loadMemberForEdit(member);
         }
       });
     }
@@ -228,46 +243,47 @@ export default function Page() {
     setEditingMember(null);
   };
 
-  const openDialog = (member?: Member) => {
+  const loadMemberForEdit = (member?: Member) => {
     if (member) {
       setEditingMember(member);
       setMemberName(member.nome);
-      setSelectedSpecializations(member.especializacoes?.map(e => e.id) || []);
+      setSelectedSpecializations(
+        member.especializacoes?.map((e) => e.id) || []
+      );
     } else {
       resetForm();
     }
-    setIsDialogOpen(true);
   };
 
   const saveMember = async () => {
     if (!memberName.trim() || !selectedDepartment) return;
-    
+
     setLoading(true);
-    
+
     try {
       let memberId: string;
       let isNew = false;
-      
+
       if (editingMember) {
         // Atualizar membro existente
         const { error } = await supabase
-          .from('integrantes')
+          .from("integrantes")
           .update({ nome: memberName })
-          .eq('id', editingMember.id);
-        
+          .eq("id", editingMember.id);
+
         if (error) throw error;
         memberId = editingMember.id;
       } else {
         // Criar novo membro
         const { data, error } = await supabase
-          .from('integrantes')
+          .from("integrantes")
           .insert({
             nome: memberName,
-            departamento_id: selectedDepartment
+            departamento_id: selectedDepartment,
           })
           .select()
           .single();
-        
+
         if (error) throw error;
         memberId = data.id;
         isNew = true;
@@ -276,46 +292,41 @@ export default function Page() {
       // Remover especializações antigas se estiver editando
       if (editingMember) {
         await supabase
-          .from('integrante_especializacoes')
+          .from("integrante_especializacoes")
           .delete()
-          .eq('integrante_id', memberId);
+          .eq("integrante_id", memberId);
       }
 
       // Adicionar novas especializações
       if (selectedSpecializations.length > 0) {
-        const specializationInserts = selectedSpecializations.map(specId => ({
+        const specializationInserts = selectedSpecializations.map((specId) => ({
           integrante_id: memberId,
           especializacao_id: specId,
-          nivel: 'básico'
+          nivel: "básico",
         }));
 
         await supabase
-          .from('integrante_especializacoes')
+          .from("integrante_especializacoes")
           .insert(specializationInserts);
       }
 
-      setIsDialogOpen(false);
       resetForm();
       fetchMembers(selectedDepartment);
-      
+
       // Toast de sucesso
       if (isNew) {
         toast.success("Integrante cadastrado com sucesso!", {
           description: `${memberName} foi adicionado ao departamento.`,
-          
         });
       } else {
         toast.success("Integrante atualizado com sucesso!", {
           description: `As informações de ${memberName} foram atualizadas.`,
         });
       }
-
-      router.push("/members/list");
-      
     } catch (error) {
       console.error("Erro ao salvar membro:", error);
       toast.error("Erro ao salvar integrante", {
-        description: "Tente novamente em alguns instantes."
+        description: "Tente novamente em alguns instantes.",
       });
     } finally {
       setLoading(false);
@@ -324,40 +335,41 @@ export default function Page() {
 
   const deleteMember = async (memberId: string, memberName: string) => {
     if (!confirm("Tem certeza que deseja excluir este integrante?")) return;
-    
+
     try {
       const { error } = await supabase
-        .from('integrantes')
+        .from("integrantes")
         .delete()
-        .eq('id', memberId);
-      
+        .eq("id", memberId);
+
       if (error) throw error;
-      
+
       fetchMembers(selectedDepartment);
-      
+
       toast.success("Integrante excluído", {
-        description: `${memberName} foi removido do departamento.`
+        description: `${memberName} foi removido do departamento.`,
       });
-      
     } catch (error) {
       console.error("Erro ao excluir membro:", error);
       toast.error("Erro ao excluir integrante", {
-        description: "Tente novamente em alguns instantes."
+        description: "Tente novamente em alguns instantes.",
       });
     }
   };
 
   return (
-    <Suspense fallback={
-      <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <div className="grid auto-rows-min gap-4 md:grid-cols-3">
-          <div className="bg-muted/50 aspect-video rounded-xl" />
-          <div className="bg-muted/50 aspect-video rounded-xl" />
-          <div className="bg-muted/50 aspect-video rounded-xl" />
+    <Suspense
+      fallback={
+        <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+          <div className="grid auto-rows-min gap-4 md:grid-cols-3">
+            <div className="bg-muted/50 aspect-video rounded-xl" />
+            <div className="bg-muted/50 aspect-video rounded-xl" />
+            <div className="bg-muted/50 aspect-video rounded-xl" />
+          </div>
+          <div className="bg-muted/50 min-h-[100vh] flex-1 rounded-xl md:min-h-min" />
         </div>
-        <div className="bg-muted/50 min-h-[100vh] flex-1 rounded-xl md:min-h-min" />
-      </div>
-    }>
+      }
+    >
       <div className="flex flex-1 flex-col gap-6 p-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -390,7 +402,10 @@ export default function Page() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Organização</label>
-                <Select value={selectedOrganization} onValueChange={setSelectedOrganization}>
+                <Select
+                  value={selectedOrganization}
+                  onValueChange={setSelectedOrganization}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione uma organização" />
                   </SelectTrigger>
@@ -406,8 +421,8 @@ export default function Page() {
 
               <div className="space-y-2">
                 <label className="text-sm font-medium">Departamento</label>
-                <Select 
-                  value={selectedDepartment} 
+                <Select
+                  value={selectedDepartment}
                   onValueChange={setSelectedDepartment}
                   disabled={!selectedOrganization}
                 >
@@ -424,80 +439,103 @@ export default function Page() {
                 </Select>
               </div>
 
-              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button 
-                    onClick={() => openDialog()}
-                    disabled={!selectedDepartment}
-                    className="w-full"
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    Novo Integrante
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>
-                      {editingMember ? "Editar Integrante" : "Novo Integrante"}
-                    </DialogTitle>
-                    <DialogDescription>
-                      Preencha as informações do integrante
-                    </DialogDescription>
-                  </DialogHeader>
-                  
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Nome</label>
-                      <Input
-                        placeholder="Nome completo do integrante"
-                        value={memberName}
-                        onChange={(e) => setMemberName(e.target.value)}
-                      />
-                    </div>
+              <div className="space-y-4 pt-4">
+                <h3 className="text-lg font-medium">
+                  {editingMember ? "Editar Integrante" : "Novo Integrante"}
+                </h3>
 
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Especializações</label>
-                      <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
-                        {specializations.map((spec) => (
-                          <label key={spec.id} className="flex items-center space-x-2">
-                            <input
-                              type="checkbox"
-                              checked={selectedSpecializations.includes(spec.id)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setSelectedSpecializations([...selectedSpecializations, spec.id]);
-                                } else {
-                                  setSelectedSpecializations(
-                                    selectedSpecializations.filter(id => id !== spec.id)
-                                  );
-                                }
-                              }}
-                            />
-                            <span className="text-sm">{spec.nome}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Nome</label>
+                  <Input
+                    placeholder="Nome completo do integrante"
+                    value={memberName}
+                    onChange={(e) => setMemberName(e.target.value)}
+                  />
+                </div>
 
-                    <div className="flex gap-2 pt-4">
-                      <Button 
-                        onClick={saveMember}
-                        disabled={!memberName.trim() || loading}
-                        className="flex-1"
-                      >
-                        {loading ? "Salvando..." : "Salvar"}
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        onClick={() => setIsDialogOpen(false)}
-                        className="flex-1"
-                      >
-                        Cancelar
-                      </Button>
-                    </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium">
+                      Especializações
+                    </label>
                   </div>
-                </DialogContent>
-              </Dialog>
+                  <div className="grid gap-2 max-h-40 overflow-y-auto p-2 border rounded">
+                    {specializations.map((spec) => (
+                      <label
+                        key={spec.id}
+                        className="flex items-center space-x-2"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedSpecializations.includes(spec.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedSpecializations([
+                                ...selectedSpecializations,
+                                spec.id,
+                              ]);
+                            } else {
+                              setSelectedSpecializations(
+                                selectedSpecializations.filter(
+                                  (id) => id !== spec.id
+                                )
+                              );
+                            }
+                          }}
+                        />
+                        <span className="text-sm">{spec.nome}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setSelectedSpecializations(
+                          specializations.map((s) => s.id)
+                        )
+                      }
+                    >
+                      Selecionar Todas
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedSpecializations([])}
+                    >
+                      Limpar Seleção
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-4">
+                  <Button
+                    onClick={saveMember}
+                    disabled={
+                      !memberName.trim() || !selectedDepartment || loading
+                    }
+                    className="flex-1"
+                  >
+                    {loading
+                      ? "Salvando..."
+                      : editingMember
+                      ? "Atualizar"
+                      : "Cadastrar"}
+                  </Button>
+                  {editingMember && (
+                    <Button
+                      variant="outline"
+                      onClick={() => resetForm()}
+                      className="flex-1"
+                    >
+                      Cancelar Edição
+                    </Button>
+                  )}
+                </div>
+              </div>
             </CardContent>
           </Card>
 

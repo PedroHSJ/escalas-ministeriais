@@ -12,12 +12,19 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Para desenvolvimento, permitir bypass com query param dev=true
+  // Para desenvolvimento, adicionar automaticamente dev=true e permitir bypass
   if (process.env.NODE_ENV === "development") {
     const devParam = request.nextUrl.searchParams.get("dev");
-    if (devParam === "true") {
-      return NextResponse.next();
+
+    // Se não tem o parâmetro dev=true, adicionar e redirecionar
+    if (devParam !== "true") {
+      const url = request.nextUrl.clone();
+      url.searchParams.set("dev", "true");
+      return NextResponse.redirect(url);
     }
+
+    // Se já tem dev=true, permitir acesso direto
+    return NextResponse.next();
   }
 
   // Para todas as outras rotas, verificar autenticação através do updateSession

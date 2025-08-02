@@ -2,17 +2,39 @@
 import { useState, useEffect, Suspense } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
+import { NavigationButton } from "@/components/ui/navigation-button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { AlertTriangle, Users, Search, Filter, Building2, User, Mail, Phone, Calendar, Edit, Trash2, Plus } from "lucide-react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { AlertTriangle, Trash2, Plus, Building, Edit } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import Link from "next/link";
+import FilterBar from "@/components/filters/FilterBar";
+import Pagination from "@/components/pagination/Pagination";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Organization {
   id: string;
@@ -49,68 +71,81 @@ interface Member {
 }
 
 export default function Page() {
-  const [userId, setUserId] = useState("");
+  const { userId } = useAuth();
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
-  const [filteredOrganizations, setfilteredOrganizations] = useState<Organization[]>([]);
-  const [selectedOrganization, setSelectedOrganization] = useState<string | undefined>();
-  const [selectedDepartment, setSelectedDepartment] = useState<string | undefined>();
+  const [filteredOrganizations, setfilteredOrganizations] = useState<
+    Organization[]
+  >([]);
+  const [selectedOrganization, setSelectedOrganization] = useState<
+    string | undefined
+  >();
+  const [selectedDepartment, setSelectedDepartment] = useState<
+    string | undefined
+  >();
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(false);
-  
+
+  // Estados da paginação
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
   // Dialog de confirmação de exclusão
   const [deleteDialog, setDeleteDialog] = useState({
     isOpen: false,
     member: null as Member | null,
-    isDeleting: false
+    isDeleting: false,
   });
 
-  const fetchSession = async () => {
-    const { data } = await supabase.auth.getSession();
-    if (data.session?.user) {
-      setUserId(data.session.user.id);
-    } 
-    // else {
-    //   setUserId("d7e39c07-f7e4-4065-8e3a-aac5ccb02f1b");
-    // }
-  };
-
   const fetchOrganizations = async () => {
-    if (!userId) return;
-    
-    const { data, error } = await supabase
-      .from('organizacoes')
-      .select('*')
-      .eq('user_id', userId)
-      .order('nome');
-    
-    if (!error && data) {
-      setOrganizations(data);
-      setfilteredOrganizations(data);
+    console.log("Fetching organizations for user:", userId);
+    if (!userId) {
+      console.log("No userId available, skipping fetch");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("organizacoes")
+        .select("*")
+        .eq("user_id", userId)
+        .order("nome");
+
+      console.log("Organizations query result:", { data, error });
+
+      if (!error && data) {
+        setOrganizations(data);
+        setfilteredOrganizations(data);
+        console.log("Organizations loaded:", data.length);
+      } else if (error) {
+        console.error("Error fetching organizations:", error);
+      }
+    } catch (error) {
+      console.error("Unexpected error fetching organizations:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // const fetchDepartments = async (organizationId?: string) => {
-  //   let query = supabase
-  //     .from('departamentos')
-  //     .select('*')
-  //     .order('nome');
+  const fetchDepartments = async (organizationId?: string) => {
+    let query = supabase.from("departamentos").select("*").order("nome");
 
-  //   if (organizationId) {
-  //     query = query.eq('organizacao_id', organizationId);
-  //   }
-    
-  //   const { data, error } = await query;
-    
-  //   if (!error && data) {
-  //     setDepartments(data);
-  //   }
-  // };
+    if (organizationId) {
+      query = query.eq("organizacao_id", organizationId);
+    }
+
+    const { data, error } = await query;
+
+    if (!error && data) {
+      setDepartments(data);
+    }
+  };
 
   // const fetchAllMembers = async () => {
   //   setLoading(true);
-    
+
   //   const { data, error } = await supabase
   //     .from('integrantes')
   //     .select(`
@@ -132,7 +167,7 @@ export default function Page() {
   //       )
   //     `)
   //     .order('nome');
-    
+
   //   if (!error && data) {
   //     const membersWithDetails = data.map(member => ({
   //       ...member,
@@ -153,13 +188,13 @@ export default function Page() {
   //     setMembers(membersWithDetails);
   //     setfilteredOrganizations(membersWithDetails);
   //   }
-    
+
   //   setLoading(false);
   // };
 
   // const fetchMembersByOrganization = async (organizationId: string) => {
   //   setLoading(true);
-    
+
   //   const { data, error } = await supabase
   //     .from('integrantes')
   //     .select(`
@@ -183,7 +218,7 @@ export default function Page() {
   //     `)
   //     .eq('departamentos.organizacao_id', organizationId)
   //     .order('nome');
-    
+
   //   if (!error && data) {
   //     const membersWithDetails = data.map(member => ({
   //       ...member,
@@ -204,58 +239,70 @@ export default function Page() {
   //     setMembers(membersWithDetails);
   //     setfilteredOrganizations(membersWithDetails);
   //   }
-    
+
   //   setLoading(false);
   // };
 
   useEffect(() => {
-    fetchSession();
-  }, []);
+    console.log("User ID changed:", userId);
+    console.log("User ID type:", typeof userId);
+    console.log("User ID length:", userId?.length);
 
-  useEffect(() => {
     if (userId) {
+      console.log("Calling fetch functions with userId:", userId);
       fetchOrganizations();
-      // fetchDepartments();
-      // fetchAllMembers();
+      fetchDepartments();
+    } else {
+      console.log("No userId available, not fetching data");
     }
   }, [userId]);
 
-  // useEffect(() => {
-  //   if (selectedOrganization) {
-  //     fetchMembersByOrganization(selectedOrganization);
-  //     fetchDepartments(selectedOrganization);
-  //     setSelectedDepartment(undefined);
-  //   } else if (userId) {
-  //     fetchAllMembers();
-  //     fetchDepartments();
-  //   }
-  // }, [selectedOrganization]);
+  useEffect(() => {
+    if (selectedOrganization) {
+      fetchDepartments(selectedOrganization);
+      setSelectedDepartment(undefined);
+    } else if (userId) {
+      fetchDepartments();
+    }
+  }, [selectedOrganization]);
 
   // Filtros
   useEffect(() => {
     let filtered = organizations;
 
-    // Filtro por departamento
-    if (selectedDepartment) {
-      filtered = filtered.filter(org => org.id === selectedOrganization);
+    // Filtro por organização selecionada
+    if (selectedOrganization) {
+      filtered = filtered.filter((org) => org.id === selectedOrganization);
     }
 
     // Filtro por termo de busca
     if (searchTerm) {
-      filtered = filtered.filter(org =>
-        org.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        org.tipo?.toLowerCase().includes(searchTerm.toLowerCase()) 
+      filtered = filtered.filter(
+        (org) =>
+          org.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          org.tipo?.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
     setfilteredOrganizations(filtered);
-  }, [members, selectedDepartment, searchTerm]);
+    setCurrentPage(1); // Reset para primeira página quando filtros mudam
+  }, [organizations, selectedOrganization, searchTerm]);
+
+  // Dados paginados
+  const totalItems = filteredOrganizations.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedOrganizations = filteredOrganizations.slice(
+    startIndex,
+    endIndex
+  );
 
   const openDeleteDialog = (member: Member) => {
     setDeleteDialog({
       isOpen: true,
       member,
-      isDeleting: false
+      isDeleting: false,
     });
   };
 
@@ -263,30 +310,30 @@ export default function Page() {
     setDeleteDialog({
       isOpen: false,
       member: null,
-      isDeleting: false
+      isDeleting: false,
     });
   };
 
   // const confirmDeleteMember = async () => {
   //   if (!deleteDialog.member) return;
-    
+
   //   setDeleteDialog(prev => ({ ...prev, isDeleting: true }));
-    
+
   //   try {
   //     const { error } = await supabase
   //       .from('integrantes')
   //       .delete()
   //       .eq('id', deleteDialog.member.id);
-      
+
   //     if (error) throw error;
-      
+
   //     // Atualizar lista
   //     if (selectedOrganization) {
   //       await fetchMembersByOrganization(selectedOrganization);
   //     } else {
   //       await fetchAllMembers();
   //     }
-      
+
   //     closeDeleteDialog();
   //   } catch (error) {
   //     console.error("Erro ao excluir membro:", error);
@@ -296,9 +343,9 @@ export default function Page() {
 
   const getInitials = (name: string) => {
     return name
-      .split(' ')
-      .map(n => n[0])
-      .join('')
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
       .toUpperCase()
       .substring(0, 2);
   };
@@ -310,16 +357,18 @@ export default function Page() {
   };
 
   return (
-    <Suspense fallback={
-      <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <div className="grid auto-rows-min gap-4 md:grid-cols-3">
-          <div className="bg-muted/50 aspect-video rounded-xl" />
-          <div className="bg-muted/50 aspect-video rounded-xl" />
-          <div className="bg-muted/50 aspect-video rounded-xl" />
+    <Suspense
+      fallback={
+        <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+          <div className="grid auto-rows-min gap-4 md:grid-cols-3">
+            <div className="bg-muted/50 aspect-video rounded-xl" />
+            <div className="bg-muted/50 aspect-video rounded-xl" />
+            <div className="bg-muted/50 aspect-video rounded-xl" />
+          </div>
+          <div className="bg-muted/50 min-h-[100vh] flex-1 rounded-xl md:min-h-min" />
         </div>
-        <div className="bg-muted/50 min-h-[100vh] flex-1 rounded-xl md:min-h-min" />
-      </div>
-    }>
+      }
+    >
       <div className="flex flex-1 flex-col gap-6 p-6">
         {/* Cabeçalho */}
         <div className="flex items-center justify-between">
@@ -329,111 +378,65 @@ export default function Page() {
               Visualize e gerencie todas as suas organizações
             </p>
           </div>
-          <Link href="/organizations">
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Nova Organização
-            </Button>
-          </Link>
+          <NavigationButton href="/organizations/create">
+            <Plus className="mr-2 h-4 w-4" />
+            Nova Organização
+          </NavigationButton>
         </div>
 
         {/* Filtros */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Filter className="h-5 w-5" />
-              Filtros
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Buscar</label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Nome, departamento, especialização..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-9"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Organização</label>
-                <Select value={selectedOrganization} onValueChange={setSelectedOrganization}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Todas as organizações" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {organizations.map((org) => (
-                      <SelectItem key={org.id} value={org.id}>
-                        {org.nome} ({org.tipo})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Departamento</label>
-                <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Todos os departamentos" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {departments.map((dept) => (
-                      <SelectItem key={dept.id} value={dept.id}>
-                        {dept.nome} ({dept.tipo_departamento})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex items-end">
-                <Button 
-                  variant="outline" 
-                  className="w-full"
-                  onClick={clearFilters}
-                >
-                  Limpar Filtros
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <FilterBar
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          selectedOrganization={selectedOrganization}
+          setSelectedOrganization={setSelectedOrganization}
+          selectedDepartment={selectedDepartment}
+          setSelectedDepartment={setSelectedDepartment}
+          organizations={organizations}
+          departments={departments}
+          searchPlaceholder="Nome da organização, tipo..."
+          showDepartmentFilter={false}
+          onClearFilters={clearFilters}
+          loading={loading}
+        />
 
         {/* Lista/Tabela de Integrantes */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Organizações ({filteredOrganizations.length})
+              <Building className="h-5 w-5" />
+              Organizações ({totalItems})
             </CardTitle>
             <CardDescription>
-              {loading ? "Carregando..." : `${filteredOrganizations.length} organização(s) encontrada(s)`}
+              {loading
+                ? "Carregando..."
+                : totalPages > 1
+                ? `Mostrando ${startIndex + 1}-${Math.min(
+                    endIndex,
+                    totalItems
+                  )} de ${totalItems} organizações`
+                : `${totalItems} organização(s) encontrada(s)`}
             </CardDescription>
           </CardHeader>
           <CardContent>
             {loading ? (
               <div className="text-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-                <p className="mt-2 text-muted-foreground">Carregando integrantes...</p>
+                <p className="mt-2 text-muted-foreground">
+                  Carregando integrantes...
+                </p>
               </div>
-            ) : filteredOrganizations.length === 0 ? (
+            ) : totalItems === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                {searchTerm || selectedOrganization || selectedDepartment 
+                {searchTerm || selectedOrganization || selectedDepartment
                   ? "Nenhum integrante encontrado com os filtros aplicados"
-                  : "Nenhum integrante cadastrado"
-                }
+                  : "Nenhum integrante cadastrado"}
               </div>
             ) : (
               <div className="space-y-4">
                 {/* Visualização em Cards para mobile */}
                 <div className="block md:hidden space-y-4">
-                  {filteredOrganizations.map((org) => (
+                  {paginatedOrganizations.map((org) => (
                     <Card key={org.id}>
                       <CardContent className="p-4">
                         <div className="flex items-start justify-between">
@@ -454,18 +457,22 @@ export default function Page() {
                             </div>
                           </div>
                           <div className="flex gap-1">
-                            {/* <Link href={`/members/edit/${member.id}`}>
-                              <Button variant="outline" size="sm">
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                            </Link>
+                            <NavigationButton
+                              href={`/organizations/edit/${org.id}`}
+                              variant="outline"
+                              size="sm"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </NavigationButton>
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => openDeleteDialog(member)}
+                              onClick={() =>
+                                console.log("Delete organization:", org.id)
+                              }
                             >
                               <Trash2 className="h-4 w-4" />
-                            </Button> */}
+                            </Button>
                           </div>
                         </div>
                         {/* {member.especializacoes && member.especializacoes.length > 0 && (
@@ -494,7 +501,7 @@ export default function Page() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredOrganizations.map((org) => (
+                      {paginatedOrganizations.map((org) => (
                         <TableRow key={org.id}>
                           <TableCell>
                             <div className="flex items-center gap-3">
@@ -509,19 +516,42 @@ export default function Page() {
                           <TableCell>
                             <div>
                               {org.tipo && (
-                               <Badge variant="secondary" className="text-xs">
-                                {org.tipo.slice(0, 1).toUpperCase() + org.tipo.slice(1)}
-                              </Badge>
-                              )}                           
+                                <Badge variant="secondary" className="text-xs">
+                                  {org.tipo.slice(0, 1).toUpperCase() +
+                                    org.tipo.slice(1)}
+                                </Badge>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell>
                             <div>
                               <div className="text-sm">
-                                {format(new Date(org.created_at), "dd/MM/yyyy", { locale: ptBR })}
+                                {format(
+                                  new Date(org.created_at),
+                                  "dd/MM/yyyy",
+                                  { locale: ptBR }
+                                )}
                               </div>
                             </div>
-                            </TableCell>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex gap-1 justify-end">
+                              <NavigationButton
+                                href={`/organizations/edit/${org.id}`}
+                                variant="outline"
+                                size="sm"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </NavigationButton>
+                              {/* <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => openDeleteDialog(org as any)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button> */}
+                            </div>
+                          </TableCell>
                           {/* <TableCell>
                             <div>
                               <div className="font-medium">{member.departamento?.organizacao?.nome}</div>
@@ -577,6 +607,18 @@ export default function Page() {
                     </TableBody>
                   </Table>
                 </div>
+
+                {/* Paginação */}
+                {totalPages > 1 && (
+                  <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    totalItems={totalItems}
+                    itemsPerPage={itemsPerPage}
+                    onPageChange={setCurrentPage}
+                    onItemsPerPageChange={setItemsPerPage}
+                  />
+                )}
               </div>
             )}
           </CardContent>
@@ -591,10 +633,11 @@ export default function Page() {
                 Confirmar Exclusão
               </DialogTitle>
               <DialogDescription>
-                Esta ação não pode ser desfeita. O integrante será removido permanentemente do sistema.
+                Esta ação não pode ser desfeita. O integrante será removido
+                permanentemente do sistema.
               </DialogDescription>
             </DialogHeader>
-            
+
             {deleteDialog.member && (
               <div className="py-4">
                 <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
@@ -606,7 +649,8 @@ export default function Page() {
                   <div>
                     <p className="font-medium">{deleteDialog.member.nome}</p>
                     <p className="text-sm text-muted-foreground">
-                      {deleteDialog.member.departamento?.organizacao?.nome} • {deleteDialog.member.departamento?.nome}
+                      {deleteDialog.member.departamento?.organizacao?.nome} •{" "}
+                      {deleteDialog.member.departamento?.nome}
                     </p>
                   </div>
                 </div>
@@ -614,15 +658,15 @@ export default function Page() {
             )}
 
             <DialogFooter className="gap-2">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={closeDeleteDialog}
                 disabled={deleteDialog.isDeleting}
               >
                 Cancelar
               </Button>
-              <Button 
-                variant="destructive" 
+              <Button
+                variant="destructive"
                 onClick={() => console.log("Confirmar exclusão")} // confirmDeleteMember
                 disabled={deleteDialog.isDeleting}
               >

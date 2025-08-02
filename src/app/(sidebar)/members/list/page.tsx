@@ -2,17 +2,60 @@
 import { useState, useEffect, Suspense } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { AlertTriangle, Users, Search, Filter, Building2, User, Mail, Phone, Calendar, Edit, Trash2, Plus } from "lucide-react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertTriangle,
+  Users,
+  Search,
+  Filter,
+  Building2,
+  User,
+  Mail,
+  Phone,
+  Calendar,
+  Edit,
+  Trash2,
+  Plus,
+} from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import Link from "next/link";
+import FilterBar from "@/components/filters/FilterBar";
+import Pagination from "@/components/pagination/Pagination";
+import { useAuth } from "@/contexts/AuthContext";
+import { useOrganization } from "@/contexts/OrganizationContext";
 
 interface Organization {
   id: string;
@@ -48,58 +91,52 @@ interface Member {
 }
 
 export default function Page() {
-  const [userId, setUserId] = useState("");
+  const { userId } = useAuth();
+  const { selectedOrganization } = useOrganization();
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [filteredMembers, setFilteredMembers] = useState<Member[]>([]);
-  const [selectedOrganization, setSelectedOrganization] = useState<string | undefined>();
-  const [selectedDepartment, setSelectedDepartment] = useState<string | undefined>();
+  const [selectedDepartment, setSelectedDepartment] = useState<
+    string | undefined
+  >();
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(false);
-  
+
+  // Estados da paginação
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
   // Dialog de confirmação de exclusão
   const [deleteDialog, setDeleteDialog] = useState({
     isOpen: false,
     member: null as Member | null,
-    isDeleting: false
+    isDeleting: false,
   });
-
-  const fetchSession = async () => {
-    const { data } = await supabase.auth.getSession();
-    if (data.session?.user) {
-      setUserId(data.session.user.id);
-    } else {
-      setUserId("d7e39c07-f7e4-4065-8e3a-aac5ccb02f1b");
-    }
-  };
 
   const fetchOrganizations = async () => {
     if (!userId) return;
-    
+
     const { data, error } = await supabase
-      .from('organizacoes')
-      .select('*')
-      .eq('user_id', userId)
-      .order('nome');
-    
+      .from("organizacoes")
+      .select("*")
+      .eq("user_id", userId)
+      .order("nome");
+
     if (!error && data) {
       setOrganizations(data);
     }
   };
 
   const fetchDepartments = async (organizationId?: string) => {
-    let query = supabase
-      .from('departamentos')
-      .select('*')
-      .order('nome');
+    let query = supabase.from("departamentos").select("*").order("nome");
 
     if (organizationId) {
-      query = query.eq('organizacao_id', organizationId);
+      query = query.eq("organizacao_id", organizationId);
     }
-    
+
     const { data, error } = await query;
-    
+
     if (!error && data) {
       setDepartments(data);
     }
@@ -107,10 +144,11 @@ export default function Page() {
 
   const fetchAllMembers = async () => {
     setLoading(true);
-    
+
     const { data, error } = await supabase
-      .from('integrantes')
-      .select(`
+      .from("integrantes")
+      .select(
+        `
         *,
         departamentos (
           nome,
@@ -127,39 +165,42 @@ export default function Page() {
           ),
           nivel
         )
-      `)
-      .order('nome');
-    
+      `
+      )
+      .order("nome");
+
     if (!error && data) {
-      const membersWithDetails = data.map(member => ({
+      const membersWithDetails = data.map((member) => ({
         ...member,
         departamento: {
           nome: member.departamentos?.nome,
           tipo_departamento: member.departamentos?.tipo_departamento,
           organizacao: {
             nome: member.departamentos?.organizacoes?.nome,
-            tipo: member.departamentos?.organizacoes?.tipo
-          }
+            tipo: member.departamentos?.organizacoes?.tipo,
+          },
         },
-        especializacoes: member.integrante_especializacoes?.map((ie: any) => ({
-          id: ie.especializacoes.id,
-          nome: ie.especializacoes.nome,
-          nivel: ie.nivel
-        })) || []
+        especializacoes:
+          member.integrante_especializacoes?.map((ie: any) => ({
+            id: ie.especializacoes.id,
+            nome: ie.especializacoes.nome,
+            nivel: ie.nivel,
+          })) || [],
       }));
       setMembers(membersWithDetails);
       setFilteredMembers(membersWithDetails);
     }
-    
+
     setLoading(false);
   };
 
   const fetchMembersByOrganization = async (organizationId: string) => {
     setLoading(true);
-    
+
     const { data, error } = await supabase
-      .from('integrantes')
-      .select(`
+      .from("integrantes")
+      .select(
+        `
         *,
         departamentos!inner (
           nome,
@@ -177,37 +218,35 @@ export default function Page() {
           ),
           nivel
         )
-      `)
-      .eq('departamentos.organizacao_id', organizationId)
-      .order('nome');
-    
+      `
+      )
+      .eq("departamentos.organizacao_id", organizationId)
+      .order("nome");
+
     if (!error && data) {
-      const membersWithDetails = data.map(member => ({
+      const membersWithDetails = data.map((member) => ({
         ...member,
         departamento: {
           nome: member.departamentos?.nome,
           tipo_departamento: member.departamentos?.tipo_departamento,
           organizacao: {
             nome: member.departamentos?.organizacoes?.nome,
-            tipo: member.departamentos?.organizacoes?.tipo
-          }
+            tipo: member.departamentos?.organizacoes?.tipo,
+          },
         },
-        especializacoes: member.integrante_especializacoes?.map((ie: any) => ({
-          id: ie.especializacoes.id,
-          nome: ie.especializacoes.nome,
-          nivel: ie.nivel
-        })) || []
+        especializacoes:
+          member.integrante_especializacoes?.map((ie: any) => ({
+            id: ie.especializacoes.id,
+            nome: ie.especializacoes.nome,
+            nivel: ie.nivel,
+          })) || [],
       }));
       setMembers(membersWithDetails);
       setFilteredMembers(membersWithDetails);
     }
-    
+
     setLoading(false);
   };
-
-  useEffect(() => {
-    fetchSession();
-  }, []);
 
   useEffect(() => {
     if (userId) {
@@ -219,8 +258,8 @@ export default function Page() {
 
   useEffect(() => {
     if (selectedOrganization) {
-      fetchMembersByOrganization(selectedOrganization);
-      fetchDepartments(selectedOrganization);
+      fetchMembersByOrganization(selectedOrganization.id);
+      fetchDepartments(selectedOrganization.id);
       setSelectedDepartment(undefined);
     } else if (userId) {
       fetchAllMembers();
@@ -234,28 +273,41 @@ export default function Page() {
 
     // Filtro por departamento
     if (selectedDepartment) {
-      filtered = filtered.filter(member => member.departamento_id === selectedDepartment);
+      filtered = filtered.filter(
+        (member) => member.departamento_id === selectedDepartment
+      );
     }
 
     // Filtro por termo de busca
     if (searchTerm) {
-      filtered = filtered.filter(member =>
-        member.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        member.departamento?.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        member.especializacoes?.some(esp => 
-          esp.nome.toLowerCase().includes(searchTerm.toLowerCase())
-        )
+      filtered = filtered.filter(
+        (member) =>
+          member.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          member.departamento?.nome
+            .toLowerCase()
+            .includes(searchTerm.toLowerCase()) ||
+          member.especializacoes?.some((esp) =>
+            esp.nome.toLowerCase().includes(searchTerm.toLowerCase())
+          )
       );
     }
 
     setFilteredMembers(filtered);
+    setCurrentPage(1); // Reset para primeira página quando filtros mudam
   }, [members, selectedDepartment, searchTerm]);
+
+  // Dados paginados
+  const totalItems = filteredMembers.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedMembers = filteredMembers.slice(startIndex, endIndex);
 
   const openDeleteDialog = (member: Member) => {
     setDeleteDialog({
       isOpen: true,
       member,
-      isDeleting: false
+      isDeleting: false,
     });
   };
 
@@ -263,63 +315,91 @@ export default function Page() {
     setDeleteDialog({
       isOpen: false,
       member: null,
-      isDeleting: false
+      isDeleting: false,
     });
   };
 
   const confirmDeleteMember = async () => {
     if (!deleteDialog.member) return;
-    
-    setDeleteDialog(prev => ({ ...prev, isDeleting: true }));
-    
+
+    setDeleteDialog((prev) => ({ ...prev, isDeleting: true }));
+
     try {
       const { error } = await supabase
-        .from('integrantes')
+        .from("integrantes")
         .delete()
-        .eq('id', deleteDialog.member.id);
-      
+        .eq("id", deleteDialog.member.id);
+
       if (error) throw error;
-      
+
       // Atualizar lista
       if (selectedOrganization) {
-        await fetchMembersByOrganization(selectedOrganization);
+        await fetchMembersByOrganization(selectedOrganization.id);
       } else {
         await fetchAllMembers();
       }
-      
+
       closeDeleteDialog();
     } catch (error) {
       console.error("Erro ao excluir membro:", error);
-      setDeleteDialog(prev => ({ ...prev, isDeleting: false }));
+      setDeleteDialog((prev) => ({ ...prev, isDeleting: false }));
     }
   };
 
   const getInitials = (name: string) => {
     return name
-      .split(' ')
-      .map(n => n[0])
-      .join('')
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
       .toUpperCase()
       .substring(0, 2);
   };
 
   const clearFilters = () => {
-    setSelectedOrganization(undefined);
     setSelectedDepartment(undefined);
     setSearchTerm("");
   };
 
-  return (
-    <Suspense fallback={
-      <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <div className="grid auto-rows-min gap-4 md:grid-cols-3">
-          <div className="bg-muted/50 aspect-video rounded-xl" />
-          <div className="bg-muted/50 aspect-video rounded-xl" />
-          <div className="bg-muted/50 aspect-video rounded-xl" />
+  if (!selectedOrganization) {
+    return (
+      <div className="flex flex-1 flex-col gap-6 p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">Lista de Integrantes</h1>
+            <p className="text-muted-foreground">
+              Selecione uma organização para ver seus integrantes
+            </p>
+          </div>
         </div>
-        <div className="bg-muted/50 min-h-[100vh] flex-1 rounded-xl md:min-h-min" />
+        <Card className="p-12">
+          <div className="text-center">
+            <Users className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+            <h3 className="text-lg font-medium mb-2">
+              Nenhuma organização selecionada
+            </h3>
+            <p className="text-muted-foreground mb-4">
+              Selecione uma organização no menu superior para gerenciar seus
+              integrantes
+            </p>
+          </div>
+        </Card>
       </div>
-    }>
+    );
+  }
+
+  return (
+    <Suspense
+      fallback={
+        <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+          <div className="grid auto-rows-min gap-4 md:grid-cols-3">
+            <div className="bg-muted/50 aspect-video rounded-xl" />
+            <div className="bg-muted/50 aspect-video rounded-xl" />
+            <div className="bg-muted/50 aspect-video rounded-xl" />
+          </div>
+          <div className="bg-muted/50 min-h-[100vh] flex-1 rounded-xl md:min-h-min" />
+        </div>
+      }
+    >
       <div className="flex flex-1 flex-col gap-6 p-6">
         {/* Cabeçalho */}
         <div className="flex items-center justify-between">
@@ -338,102 +418,59 @@ export default function Page() {
         </div>
 
         {/* Filtros */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Filter className="h-5 w-5" />
-              Filtros
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Buscar</label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Nome, departamento, especialização..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-9"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Organização</label>
-                <Select value={selectedOrganization} onValueChange={setSelectedOrganization}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Todas as organizações" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {organizations.map((org) => (
-                      <SelectItem key={org.id} value={org.id}>
-                        {org.nome} ({org.tipo})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Departamento</label>
-                <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Todos os departamentos" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {departments.map((dept) => (
-                      <SelectItem key={dept.id} value={dept.id}>
-                        {dept.nome} ({dept.tipo_departamento})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex items-end">
-                <Button 
-                  variant="outline" 
-                  className="w-full"
-                  onClick={clearFilters}
-                >
-                  Limpar Filtros
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <FilterBar
+          selectedOrganization={selectedOrganization.id}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          selectedDepartment={selectedDepartment}
+          setSelectedDepartment={setSelectedDepartment}
+          organizations={organizations}
+          departments={departments}
+          searchPlaceholder="Nome, departamento, especialização..."
+          showDepartmentFilter={true}
+          onClearFilters={clearFilters}
+          loading={loading}
+        />
 
         {/* Lista/Tabela de Integrantes */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Users className="h-5 w-5" />
-              Integrantes ({filteredMembers.length})
+              Integrantes ({totalItems})
             </CardTitle>
             <CardDescription>
-              {loading ? "Carregando..." : `${filteredMembers.length} integrante(s) encontrado(s)`}
+              {loading
+                ? "Carregando..."
+                : totalPages > 1
+                ? `Mostrando ${startIndex + 1}-${Math.min(
+                    endIndex,
+                    totalItems
+                  )} de ${totalItems} integrantes`
+                : `${totalItems} integrante(s) encontrado(s)`}
             </CardDescription>
           </CardHeader>
           <CardContent>
             {loading ? (
               <div className="text-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-                <p className="mt-2 text-muted-foreground">Carregando integrantes...</p>
+                <p className="mt-2 text-muted-foreground">
+                  Carregando integrantes...
+                </p>
               </div>
-            ) : filteredMembers.length === 0 ? (
+            ) : totalItems === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                {searchTerm || selectedOrganization || selectedDepartment 
+                {searchTerm || selectedDepartment
                   ? "Nenhum integrante encontrado com os filtros aplicados"
-                  : "Nenhum integrante cadastrado"
-                }
+                  : selectedOrganization
+                  ? "Nenhum integrante cadastrado nesta organização"
+                  : "Nenhum integrante cadastrado"}
               </div>
             ) : (
               <div className="space-y-4">
                 {/* Visualização em Cards para mobile */}
                 <div className="block md:hidden space-y-4">
-                  {filteredMembers.map((member) => (
+                  {paginatedMembers.map((member) => (
                     <Card key={member.id}>
                       <CardContent className="p-4">
                         <div className="flex items-start justify-between">
@@ -446,10 +483,16 @@ export default function Page() {
                             <div>
                               <h3 className="font-medium">{member.nome}</h3>
                               <p className="text-sm text-muted-foreground">
-                                {member.departamento?.organizacao?.nome} • {member.departamento?.nome}
+                                {member.departamento?.organizacao?.nome} •{" "}
+                                {member.departamento?.nome}
                               </p>
                               <p className="text-xs text-muted-foreground">
-                                Cadastrado em {format(new Date(member.created_at), "dd/MM/yyyy", { locale: ptBR })}
+                                Cadastrado em{" "}
+                                {format(
+                                  new Date(member.created_at),
+                                  "dd/MM/yyyy",
+                                  { locale: ptBR }
+                                )}
                               </p>
                             </div>
                           </div>
@@ -468,15 +511,20 @@ export default function Page() {
                             </Button>
                           </div>
                         </div>
-                        {member.especializacoes && member.especializacoes.length > 0 && (
-                          <div className="flex gap-1 mt-3 flex-wrap">
-                            {member.especializacoes.map((esp) => (
-                              <Badge key={esp.id} variant="secondary" className="text-xs">
-                                {esp.nome}
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
+                        {member.especializacoes &&
+                          member.especializacoes.length > 0 && (
+                            <div className="flex gap-1 mt-3 flex-wrap">
+                              {member.especializacoes.map((esp) => (
+                                <Badge
+                                  key={esp.id}
+                                  variant="secondary"
+                                  className="text-xs"
+                                >
+                                  {esp.nome}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
                       </CardContent>
                     </Card>
                   ))}
@@ -496,7 +544,7 @@ export default function Page() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredMembers.map((member) => (
+                      {paginatedMembers.map((member) => (
                         <TableRow key={member.id}>
                           <TableCell>
                             <div className="flex items-center gap-3">
@@ -510,7 +558,9 @@ export default function Page() {
                           </TableCell>
                           <TableCell>
                             <div>
-                              <div className="font-medium">{member.departamento?.organizacao?.nome}</div>
+                              <div className="font-medium">
+                                {member.departamento?.organizacao?.nome}
+                              </div>
                               <div className="text-xs text-muted-foreground capitalize">
                                 {member.departamento?.organizacao?.tipo}
                               </div>
@@ -519,27 +569,41 @@ export default function Page() {
                           <TableCell>
                             <div>
                               <div>{member.departamento?.nome}</div>
-                              <div className="text-xs text-muted-foreground capitalize">
-                                {member.departamento?.tipo_departamento}
-                              </div>
+                              {member.departamento?.tipo_departamento.toLowerCase() !=
+                                member.departamento?.nome.toLowerCase() && (
+                                <div className="text-xs text-muted-foreground capitalize">
+                                  {member.departamento?.tipo_departamento}
+                                </div>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell>
                             <div className="flex gap-1 flex-wrap">
-                              {member.especializacoes && member.especializacoes.length > 0 ? (
+                              {member.especializacoes &&
+                              member.especializacoes.length > 0 ? (
                                 member.especializacoes.map((esp) => (
-                                  <Badge key={esp.id} variant="secondary" className="text-xs">
+                                  <Badge
+                                    key={esp.id}
+                                    variant="secondary"
+                                    className="text-xs"
+                                  >
                                     {esp.nome}
                                   </Badge>
                                 ))
                               ) : (
-                                <span className="text-xs text-muted-foreground">Nenhuma</span>
+                                <span className="text-xs text-muted-foreground">
+                                  Nenhuma
+                                </span>
                               )}
                             </div>
                           </TableCell>
                           <TableCell>
                             <div className="text-sm">
-                              {format(new Date(member.created_at), "dd/MM/yyyy", { locale: ptBR })}
+                              {format(
+                                new Date(member.created_at),
+                                "dd/MM/yyyy",
+                                { locale: ptBR }
+                              )}
                             </div>
                           </TableCell>
                           <TableCell className="text-right">
@@ -563,6 +627,18 @@ export default function Page() {
                     </TableBody>
                   </Table>
                 </div>
+
+                {/* Paginação */}
+                {totalPages > 1 && (
+                  <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    totalItems={totalItems}
+                    itemsPerPage={itemsPerPage}
+                    onPageChange={setCurrentPage}
+                    onItemsPerPageChange={setItemsPerPage}
+                  />
+                )}
               </div>
             )}
           </CardContent>
@@ -577,10 +653,11 @@ export default function Page() {
                 Confirmar Exclusão
               </DialogTitle>
               <DialogDescription>
-                Esta ação não pode ser desfeita. O integrante será removido permanentemente do sistema.
+                Esta ação não pode ser desfeita. O integrante será removido
+                permanentemente do sistema.
               </DialogDescription>
             </DialogHeader>
-            
+
             {deleteDialog.member && (
               <div className="py-4">
                 <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
@@ -592,7 +669,8 @@ export default function Page() {
                   <div>
                     <p className="font-medium">{deleteDialog.member.nome}</p>
                     <p className="text-sm text-muted-foreground">
-                      {deleteDialog.member.departamento?.organizacao?.nome} • {deleteDialog.member.departamento?.nome}
+                      {deleteDialog.member.departamento?.organizacao?.nome} •{" "}
+                      {deleteDialog.member.departamento?.nome}
                     </p>
                   </div>
                 </div>
@@ -600,15 +678,15 @@ export default function Page() {
             )}
 
             <DialogFooter className="gap-2">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={closeDeleteDialog}
                 disabled={deleteDialog.isDeleting}
               >
                 Cancelar
               </Button>
-              <Button 
-                variant="destructive" 
+              <Button
+                variant="destructive"
                 onClick={confirmDeleteMember}
                 disabled={deleteDialog.isDeleting}
               >

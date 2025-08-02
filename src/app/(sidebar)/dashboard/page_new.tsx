@@ -12,7 +12,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { NavigationButton } from "@/components/ui/navigation-button";
 import { Badge } from "@/components/ui/badge";
 import {
   Building2,
@@ -233,10 +232,10 @@ export default function DashboardPage() {
               Crie sua primeira organização para começar a gerenciar escalas.
             </p>
           </div>
-          <NavigationButton href="/organizations/create">
+          <Button onClick={() => router.push("/organizations/create")}>
             <Plus className="h-4 w-4 mr-2" />
             Criar Organização
-          </NavigationButton>
+          </Button>
         </div>
       </div>
     );
@@ -419,16 +418,12 @@ export default function DashboardPage() {
                   Nenhuma escala criada ainda
                 </p>
                 <div className="flex gap-2 justify-center mt-4">
-                  <NavigationButton href="/scales/create" size="sm">
-                    Criar Escala Normal
-                  </NavigationButton>
-                  <NavigationButton
-                    href="/folgas/create"
-                    variant="outline"
-                    size="sm"
-                  >
-                    Criar Escala de Folgas
-                  </NavigationButton>
+                  <Button asChild size="sm">
+                    <Link href="/scales/create">Criar Escala Normal</Link>
+                  </Button>
+                  <Button asChild variant="outline" size="sm">
+                    <Link href="/folgas/create">Criar Escala de Folgas</Link>
+                  </Button>
                 </div>
               </div>
             )}
@@ -449,38 +444,30 @@ export default function DashboardPage() {
         </CardHeader>
         <CardContent>
           <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-4">
-            <NavigationButton
-              href="/members/create"
-              variant="outline"
-              className="justify-start"
-            >
-              <Users className="h-4 w-4 mr-2" />
-              Adicionar Membro
-            </NavigationButton>
-            <NavigationButton
-              href="/scales/create"
-              variant="outline"
-              className="justify-start"
-            >
-              <Calendar className="h-4 w-4 mr-2" />
-              Nova Escala
-            </NavigationButton>
-            <NavigationButton
-              href="/folgas/create"
-              variant="outline"
-              className="justify-start"
-            >
-              <Clock className="h-4 w-4 mr-2" />
-              Escala de Folgas
-            </NavigationButton>
-            <NavigationButton
-              href="/members/list"
-              variant="outline"
-              className="justify-start"
-            >
-              <BarChart3 className="h-4 w-4 mr-2" />
-              Ver Relatórios
-            </NavigationButton>
+            <Button asChild variant="outline" className="justify-start">
+              <Link href="/members/create">
+                <Users className="h-4 w-4 mr-2" />
+                Adicionar Membro
+              </Link>
+            </Button>
+            <Button asChild variant="outline" className="justify-start">
+              <Link href="/scales/create">
+                <Calendar className="h-4 w-4 mr-2" />
+                Nova Escala
+              </Link>
+            </Button>
+            <Button asChild variant="outline" className="justify-start">
+              <Link href="/folgas/create">
+                <Clock className="h-4 w-4 mr-2" />
+                Escala de Folgas
+              </Link>
+            </Button>
+            <Button asChild variant="outline" className="justify-start">
+              <Link href="/members/list">
+                <BarChart3 className="h-4 w-4 mr-2" />
+                Ver Relatórios
+              </Link>
+            </Button>
           </div>
         </CardContent>
       </Card>

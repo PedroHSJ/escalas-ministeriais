@@ -91,3 +91,44 @@ CREATE TABLE public.escala_participacoes (
   CONSTRAINT escala_participacoes_especializacao_fkey FOREIGN KEY (especializacao_id) REFERENCES public.especializacoes(id)
 );
 
+-- Tabela para escalas de folgas (escala preta e vermelha)
+CREATE TABLE public.escalas_folgas (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  departamento_id uuid NOT NULL,
+  nome text NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT escalas_folgas_pkey PRIMARY KEY (id),
+  CONSTRAINT escalas_folgas_departamento_id_fkey FOREIGN KEY (departamento_id) REFERENCES public.departamentos(id)
+);
+
+-- Tabela para participações nas escalas de folgas
+CREATE TABLE public.escala_folgas_participacoes (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  escala_folga_id uuid NOT NULL,
+  integrante_id uuid NOT NULL,
+  folgas_iniciais integer NOT NULL DEFAULT 0, -- número de folgas que a pessoa tinha no início da escala
+  folgas_atuais integer NOT NULL DEFAULT 0, -- número de folgas atuais da pessoa
+  posicao_atual integer NOT NULL DEFAULT 1, -- posição atual na rotação (1, 2, 3, etc.)
+  ativo boolean NOT NULL DEFAULT true, -- se está ativo na escala
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT escala_folgas_participacoes_pkey PRIMARY KEY (id),
+  CONSTRAINT escala_folgas_participacoes_escala_fkey FOREIGN KEY (escala_folga_id) REFERENCES public.escalas_folgas(id),
+  CONSTRAINT escala_folgas_participacoes_integrante_fkey FOREIGN KEY (integrante_id) REFERENCES public.integrantes(id),
+  CONSTRAINT escala_folgas_participacoes_unique UNIQUE (escala_folga_id, integrante_id)
+);
+
+-- Tabela para registrar as atribuições das escalas de folgas por data
+CREATE TABLE public.escala_folgas_atribuicoes (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  escala_folga_id uuid NOT NULL,
+  data date NOT NULL,
+  integrante_id uuid NOT NULL,
+  tipo_atribuicao text NOT NULL, -- 'trabalho', 'folga'
+  observacao text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT escala_folgas_atribuicoes_pkey PRIMARY KEY (id),
+  CONSTRAINT escala_folgas_atribuicoes_escala_fkey FOREIGN KEY (escala_folga_id) REFERENCES public.escalas_folgas(id),
+  CONSTRAINT escala_folgas_atribuicoes_integrante_fkey FOREIGN KEY (integrante_id) REFERENCES public.integrantes(id),
+  CONSTRAINT escala_folgas_atribuicoes_unique UNIQUE (escala_folga_id, data, integrante_id)
+);
+
