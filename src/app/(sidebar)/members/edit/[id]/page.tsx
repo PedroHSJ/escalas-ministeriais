@@ -2,8 +2,20 @@
 import { useState, useEffect, Suspense } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -12,6 +24,7 @@ import { ArrowLeft, User, Building2, Users, Save, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import { NavigationButton } from "@/components/ui/navigation-button";
 
 interface Organization {
   id: string;
@@ -73,7 +86,9 @@ export default function EditMemberPage() {
   const [memberName, setMemberName] = useState("");
   const [selectedOrganization, setSelectedOrganization] = useState("");
   const [selectedDepartment, setSelectedDepartment] = useState("");
-  const [selectedSpecializations, setSelectedSpecializations] = useState<string[]>([]);
+  const [selectedSpecializations, setSelectedSpecializations] = useState<
+    string[]
+  >([]);
 
   const fetchSession = async () => {
     const { data } = await supabase.auth.getSession();
@@ -86,10 +101,11 @@ export default function EditMemberPage() {
 
   const fetchMember = async () => {
     setLoading(true);
-    
+
     const { data, error } = await supabase
-      .from('integrantes')
-      .select(`
+      .from("integrantes")
+      .select(
+        `
         *,
         departamentos (
           id,
@@ -109,14 +125,15 @@ export default function EditMemberPage() {
             nome
           )
         )
-      `)
-      .eq('id', memberId)
+      `
+      )
+      .eq("id", memberId)
       .single();
-    
+
     if (error) {
       console.error("Erro ao carregar membro:", error);
       toast.error("Erro ao carregar integrante");
-      router.push("/escalas/members/list");
+      router.push("/members/list");
       return;
     }
 
@@ -126,22 +143,22 @@ export default function EditMemberPage() {
       setSelectedDepartment(data.departamento_id);
       setSelectedOrganization(data.departamentos?.organizacao_id || "");
       setSelectedSpecializations(
-        data.integrante_especializacoes?.map(ie => ie.especializacao_id) || []
+        data.integrante_especializacoes?.map((ie) => ie.especializacao_id) || []
       );
     }
-    
+
     setLoading(false);
   };
 
   const fetchOrganizations = async () => {
     if (!userId) return;
-    
+
     const { data, error } = await supabase
-      .from('organizacoes')
-      .select('*')
-      .eq('user_id', userId)
-      .order('nome');
-    
+      .from("organizacoes")
+      .select("*")
+      .eq("user_id", userId)
+      .order("nome");
+
     if (!error && data) {
       setOrganizations(data);
     }
@@ -149,11 +166,11 @@ export default function EditMemberPage() {
 
   const fetchDepartments = async (organizationId: string) => {
     const { data, error } = await supabase
-      .from('departamentos')
-      .select('*')
-      .eq('organizacao_id', organizationId)
-      .order('nome');
-    
+      .from("departamentos")
+      .select("*")
+      .eq("organizacao_id", organizationId)
+      .order("nome");
+
     if (!error && data) {
       setDepartments(data);
     }
@@ -161,17 +178,19 @@ export default function EditMemberPage() {
 
   const fetchSpecializations = async (organizationId: string) => {
     const { data, error } = await supabase
-      .from('especializacoes')
-      .select(`
+      .from("especializacoes")
+      .select(
+        `
         id,
         nome,
         tipos_especializacao!inner (
           organizacao_id
         )
-      `)
-      .eq('tipos_especializacao.organizacao_id', organizationId)
-      .order('nome');
-    
+      `
+      )
+      .eq("tipos_especializacao.organizacao_id", organizationId)
+      .order("nome");
+
     if (!error && data) {
       setSpecializations(data);
     }
@@ -206,31 +225,31 @@ export default function EditMemberPage() {
     try {
       // Atualizar dados básicos do membro
       const { error: updateError } = await supabase
-        .from('integrantes')
+        .from("integrantes")
         .update({
           nome: memberName,
-          departamento_id: selectedDepartment
+          departamento_id: selectedDepartment,
         })
-        .eq('id', memberId);
+        .eq("id", memberId);
 
       if (updateError) throw updateError;
 
       // Remover especializações antigas
       await supabase
-        .from('integrante_especializacoes')
+        .from("integrante_especializacoes")
         .delete()
-        .eq('integrante_id', memberId);
+        .eq("integrante_id", memberId);
 
       // Adicionar novas especializações
       if (selectedSpecializations.length > 0) {
-        const specializationInserts = selectedSpecializations.map(specId => ({
+        const specializationInserts = selectedSpecializations.map((specId) => ({
           integrante_id: memberId,
           especializacao_id: specId,
-          nivel: 'básico'
+          nivel: "básico",
         }));
 
         const { error: specError } = await supabase
-          .from('integrante_especializacoes')
+          .from("integrante_especializacoes")
           .insert(specializationInserts);
 
         if (specError) throw specError;
@@ -240,19 +259,18 @@ export default function EditMemberPage() {
         description: `${memberName} foi atualizado no sistema.`,
         action: {
           label: "Ver Lista",
-          onClick: () => router.push("/escalas/members/list")
-        }
+          onClick: () => router.push("/members/list"),
+        },
       });
 
       // Redirecionar após sucesso
       setTimeout(() => {
-        router.push("/escalas/members/list");
+        router.push("/members/list");
       }, 1000);
-
     } catch (error) {
       console.error("Erro ao salvar:", error);
       toast.error("Erro ao atualizar integrante", {
-        description: "Tente novamente em alguns instantes."
+        description: "Tente novamente em alguns instantes.",
       });
     } finally {
       setSaving(false);
@@ -261,9 +279,9 @@ export default function EditMemberPage() {
 
   const getInitials = (name: string) => {
     return name
-      .split(' ')
-      .map(n => n[0])
-      .join('')
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
       .toUpperCase()
       .substring(0, 2);
   };
@@ -289,12 +307,9 @@ export default function EditMemberPage() {
           <p className="text-muted-foreground mt-2">
             O integrante que você está tentando editar não foi encontrado.
           </p>
-          <Link href="/escalas/members/list" className="mt-4 inline-block">
-            <Button>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Voltar para Lista
-            </Button>
-          </Link>
+          <NavigationButton href="/members/list" variant="outline" size={"sm"}>
+            Voltar para Lista
+          </NavigationButton>
         </div>
       </div>
     );
@@ -302,42 +317,23 @@ export default function EditMemberPage() {
 
   return (
     <Suspense fallback={<div>Carregando...</div>}>
-      <div className="flex flex-1 flex-col gap-6 p-6">
+      <div className="flex flex-1 flex-col gap-6">
         {/* Cabeçalho */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link href="/escalas/members/list">
-              <Button variant="outline" size="sm">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Voltar
-              </Button>
-            </Link>
+            <NavigationButton
+              href="/members/list"
+              variant="outline"
+              size={"sm"}
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+            </NavigationButton>
             <div>
               <h1 className="text-3xl font-bold">Editar Integrante</h1>
               <p className="text-muted-foreground">
                 Atualize as informações do integrante
               </p>
             </div>
-          </div>
-          <div className="flex gap-2">
-            <Link href="/escalas/members/list">
-              <Button variant="outline">
-                Cancelar
-              </Button>
-            </Link>
-            <Button onClick={handleSave} disabled={saving}>
-              {saving ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Salvando...
-                </>
-              ) : (
-                <>
-                  <Save className="mr-2 h-4 w-4" />
-                  Salvar
-                </>
-              )}
-            </Button>
           </div>
         </div>
 
@@ -349,9 +345,7 @@ export default function EditMemberPage() {
                 <User className="h-5 w-5" />
                 Informações Atuais
               </CardTitle>
-              <CardDescription>
-                Dados cadastrados no sistema
-              </CardDescription>
+              <CardDescription>Dados cadastrados no sistema</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center gap-3">
@@ -366,23 +360,31 @@ export default function EditMemberPage() {
                     {member.departamentos?.organizacoes?.nome}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {member.departamentos?.nome} • {member.departamentos?.tipo_departamento}
+                    {member.departamentos?.nome} •{" "}
+                    {member.departamentos?.tipo_departamento}
                   </p>
                 </div>
               </div>
 
-              {member.integrante_especializacoes && member.integrante_especializacoes.length > 0 && (
-                <div>
-                  <label className="text-sm font-medium">Especializações Atuais</label>
-                  <div className="flex gap-1 flex-wrap mt-2">
-                    {member.integrante_especializacoes.map((ie) => (
-                      <Badge key={ie.especializacao_id} variant="secondary" className="text-xs">
-                        {ie.especializacoes.nome}
-                      </Badge>
-                    ))}
+              {member.integrante_especializacoes &&
+                member.integrante_especializacoes.length > 0 && (
+                  <div>
+                    <label className="text-sm font-medium">
+                      Especializações Atuais
+                    </label>
+                    <div className="flex gap-1 flex-wrap mt-2">
+                      {member.integrante_especializacoes.map((ie) => (
+                        <Badge
+                          key={ie.especializacao_id}
+                          variant="secondary"
+                          className="text-xs"
+                        >
+                          {ie.especializacoes.nome}
+                        </Badge>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
             </CardContent>
           </Card>
 
@@ -409,9 +411,12 @@ export default function EditMemberPage() {
               </div>
 
               {/* Organização */}
-              <div className="space-y-2">
+              {/* <div className="space-y-2">
                 <label className="text-sm font-medium">Organização *</label>
-                <Select value={selectedOrganization} onValueChange={setSelectedOrganization}>
+                <Select
+                  value={selectedOrganization}
+                  onValueChange={setSelectedOrganization}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione uma organização" />
                   </SelectTrigger>
@@ -423,13 +428,13 @@ export default function EditMemberPage() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
+              </div> */}
 
               {/* Departamento */}
-              <div className="space-y-2">
+              {/* <div className="space-y-2">
                 <label className="text-sm font-medium">Departamento *</label>
-                <Select 
-                  value={selectedDepartment} 
+                <Select
+                  value={selectedDepartment}
                   onValueChange={setSelectedDepartment}
                   disabled={!selectedOrganization}
                 >
@@ -444,7 +449,7 @@ export default function EditMemberPage() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
+              </div> */}
 
               {/* Especializações */}
               <div className="space-y-2">
@@ -452,29 +457,36 @@ export default function EditMemberPage() {
                 <div className="border rounded-lg p-4 max-h-48 overflow-y-auto">
                   {specializations.length === 0 ? (
                     <p className="text-sm text-muted-foreground">
-                      {selectedOrganization 
+                      {selectedOrganization
                         ? "Nenhuma especialização disponível para esta organização"
-                        : "Selecione uma organização para ver as especializações"
-                      }
+                        : "Selecione uma organização para ver as especializações"}
                     </p>
                   ) : (
                     <div className="space-y-3">
                       {specializations.map((spec) => (
-                        <div key={spec.id} className="flex items-center space-x-2">
+                        <div
+                          key={spec.id}
+                          className="flex items-center space-x-2"
+                        >
                           <Checkbox
                             id={spec.id}
                             checked={selectedSpecializations.includes(spec.id)}
                             onCheckedChange={(checked) => {
                               if (checked) {
-                                setSelectedSpecializations([...selectedSpecializations, spec.id]);
+                                setSelectedSpecializations([
+                                  ...selectedSpecializations,
+                                  spec.id,
+                                ]);
                               } else {
                                 setSelectedSpecializations(
-                                  selectedSpecializations.filter(id => id !== spec.id)
+                                  selectedSpecializations.filter(
+                                    (id) => id !== spec.id
+                                  )
                                 );
                               }
                             }}
                           />
-                          <label 
+                          <label
                             htmlFor={spec.id}
                             className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                           >
@@ -485,13 +497,17 @@ export default function EditMemberPage() {
                     </div>
                   )}
                 </div>
-                
+
                 {selectedSpecializations.length > 0 && (
                   <div className="flex gap-1 flex-wrap mt-2">
                     {selectedSpecializations.map((specId) => {
-                      const spec = specializations.find(s => s.id === specId);
+                      const spec = specializations.find((s) => s.id === specId);
                       return spec ? (
-                        <Badge key={specId} variant="outline" className="text-xs">
+                        <Badge
+                          key={specId}
+                          variant="outline"
+                          className="text-xs"
+                        >
                           {spec.nome}
                         </Badge>
                       ) : null;
@@ -502,12 +518,16 @@ export default function EditMemberPage() {
 
               {/* Botões de Ação */}
               <div className="flex gap-2 pt-4 border-t">
-                <Link href="/escalas/members/list" className="flex-1">
+                <Link href="/members/list" className="flex-1">
                   <Button variant="outline" className="w-full">
                     Cancelar
                   </Button>
                 </Link>
-                <Button onClick={handleSave} disabled={saving} className="flex-1">
+                <Button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="flex-1"
+                >
                   {saving ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />

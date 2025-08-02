@@ -61,6 +61,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { ObservacaoTemplate } from "@/types/observacoes";
 import Link from "next/link";
 import CalendarTable from "@/components/calendar/CalendarTable";
+import { NavigationButton } from "@/components/ui/navigation-button";
 
 interface Organization {
   id: string;
@@ -1166,11 +1167,9 @@ export default function FolgasCreatePage() {
       <div className="flex flex-1 flex-col gap-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link href="/members/list">
-              <Button variant="outline" size="sm">
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-            </Link>
+            <NavigationButton href="/folgas/list" variant="outline" size="sm">
+              <ArrowLeft className="h-4 w-4" />
+            </NavigationButton>
             <div>
               <h1 className="text-3xl font-bold">
                 Gerar Escala Preta e Vermelha
