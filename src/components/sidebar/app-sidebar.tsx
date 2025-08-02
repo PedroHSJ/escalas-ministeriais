@@ -82,7 +82,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         isActive:
           pathname.startsWith("/generate") ||
           pathname.startsWith("/scales") ||
-          pathname.startsWith("/folgas"),
+          pathname.startsWith("/folgas") ||
+          pathname.startsWith("/feriados"),
         items: [
           {
             title: "Preta e Vermelha",
@@ -98,6 +99,28 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 title: "Listar",
                 url: "/folgas/list",
                 isActive: pathname.startsWith("/folgas/list"),
+              },
+              {
+                title: "Feriados",
+                url: "/feriados",
+                isActive: pathname.startsWith("/feriados"),
+              },
+            ],
+          },
+          {
+            title: "Escalas de Plantões",
+            url: "#",
+            isActive: pathname.startsWith("/plantoes"),
+            items: [
+              {
+                title: "Criar",
+                url: "/plantoes/create",
+                isActive: pathname.startsWith("/plantoes/create"),
+              },
+              {
+                title: "Listar",
+                url: "/plantoes/list",
+                isActive: pathname.startsWith("/plantoes/list"),
               },
             ],
           },

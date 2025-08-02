@@ -1,6 +1,8 @@
 "use client";
 import { useState, useEffect, Suspense } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import FeriadoManager from "@/utils/feriados";
+import FeriadosPersonalizados from "@/components/feriados/FeriadosPersonalizados";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -649,6 +651,9 @@ export default function FolgasCreatePage() {
     let currentDate = new Date(scaleGeneration.startDate);
     const endDate = new Date(scaleGeneration.endDate);
 
+    // Criar instância do gerenciador de feriados
+    const feriadoManager = new FeriadoManager();
+
     while (currentDate <= endDate) {
       const dayOfWeek = currentDate.getDay();
       const dayKey = [
@@ -666,13 +671,31 @@ export default function FolgasCreatePage() {
         const dayOnLeave: EscalaFolgaMember[] = [];
         const assignments: Record<string, EscalaFolgaMember[]> = {};
 
+        // Verificar se é feriado nacional ou local
+        const isHoliday = feriadoManager.isHoliday(currentDate);
+        const isSpecialPeriod = feriadoManager.isSpecialPeriod(currentDate);
+
         // Para cada especialização, aplicar a lógica de folgas independentemente
         for (const [
           specName,
           specMembers,
         ] of membersBySpecialization.entries()) {
           const numberOfPeople = specMembers.length;
-          const numberOfOnLeave = numberOfPeople - 1; // Lógica: folgas = pessoas - 1 por especialização
+
+          // Aplicar regras especiais de feriado da escala "preta e vermelha"
+          let numberOfOnLeave: number;
+
+          if (isHoliday || isSpecialPeriod) {
+            // Em feriados, mais pessoas ficam de folga (escala reduzida)
+            // Máximo de 1 pessoa trabalhando por especialização em feriados
+            numberOfOnLeave = Math.max(
+              numberOfPeople - 1,
+              Math.floor(numberOfPeople * 0.8)
+            );
+          } else {
+            // Lógica normal: folgas = pessoas - 1 por especialização
+            numberOfOnLeave = numberOfPeople - 1;
+          }
 
           // Ordenar membros por número de folgas (menor primeiro) e depois por posição
           const sortedMembers = [...specMembers].sort((a, b) => {
@@ -694,12 +717,15 @@ export default function FolgasCreatePage() {
           assignments[specName] = specWorking;
 
           // Atualizar folgas dos que ficaram de folga nesta especialização
+          // Em feriados, aplicar multiplicador de folgas (vale mais)
+          const folgasIncrement = isHoliday || isSpecialPeriod ? 1.5 : 1;
+
           specOnLeave.forEach((member) => {
             const originalMember = membersBySpecialization
               .get(specName)!
               .find((m) => m.id === member.id);
             if (originalMember) {
-              originalMember.folgasAtuais += 1;
+              originalMember.folgasAtuais += folgasIncrement;
             }
           });
         }
@@ -708,8 +734,10 @@ export default function FolgasCreatePage() {
         dayOnLeave.push(...membersOnlyForLeaveCountCopy);
 
         // Atualizar folgas dos membros que apenas contabilizam
+        // Em feriados, aplicar o mesmo multiplicador
+        const folgasIncrement = isHoliday || isSpecialPeriod ? 1.5 : 1;
         membersOnlyForLeaveCountCopy.forEach((member) => {
-          member.folgasAtuais += 1;
+          member.folgasAtuais += folgasIncrement;
         });
 
         schedule.push({
@@ -1178,6 +1206,36 @@ export default function FolgasCreatePage() {
                 Configure a escala de folgas para o setor selecionado, adicione
                 integrantes e gere a escala automaticamente.
               </p>
+              <div className="mt-3 p-3 bg-blue-50 border-l-4 border-blue-400 rounded">
+                <div className="flex items-start">
+                  <div className="flex-shrink-0">
+                    <span className="text-blue-400">ℹ️</span>
+                  </div>
+                  <div className="ml-2">
+                    <p className="text-sm text-blue-700">
+                      <strong>
+                        Regras de Feriados na Escala Preta e Vermelha:
+                      </strong>
+                    </p>
+                    <ul className="text-xs text-blue-600 mt-1 space-y-1">
+                      <li>
+                        • Feriados nacionais aparecem destacados em vermelho 🎄
+                      </li>
+                      <li>
+                        • Em feriados, mais pessoas ficam de folga (escala
+                        reduzida)
+                      </li>
+                      <li>
+                        • Folgas em feriados valem 1.5x (vale mais no contador)
+                      </li>
+                      <li>
+                        • Períodos especiais (Natal/Ano Novo) têm regras
+                        diferenciadas ⭐
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1897,6 +1955,20 @@ export default function FolgasCreatePage() {
           </Card>
         </div>
 
+        {/* Feriados Personalizados */}
+        <FeriadosPersonalizados
+          feriadoManager={new FeriadoManager()}
+          onFeriadoChange={() => {
+            // Se há escala gerada, sugerir regeneração
+            if (generatedSchedule.length > 0) {
+              toast.info("Feriados alterados", {
+                description:
+                  "Considere regenerar a escala para aplicar as mudanças",
+              });
+            }
+          }}
+        />
+
         {/* Layout Otimizado para Impressão - Invisível na tela */}
         {generatedSchedule.length > 0 && (
           <div id="scale-print-preview" className="hidden">
@@ -1958,55 +2030,89 @@ export default function FolgasCreatePage() {
                 </tr>
               </thead>
               <tbody>
-                {generatedSchedule.map((day, index) => (
-                  <tr key={index}>
-                    <td className="print-date">
-                      <strong>
-                        {format(day.date, "dd/MM", { locale: ptBR })}
-                      </strong>
-                      <br />
-                      <small>
-                        {format(day.date, "EEE", {
-                          locale: ptBR,
-                        }).toUpperCase()}
-                      </small>
-                    </td>
-                    {/* Células dinâmicas para cada especialização */}
-                    {Array.from(
-                      new Set(
-                        scaleMembers
-                          .map((m) => m.especializacaoNome)
-                          .filter(Boolean)
-                      )
-                    ).map((spec) => (
-                      <td key={spec} className="print-working">
+                {generatedSchedule.map((day, index) => {
+                  const feriadoManager = new FeriadoManager();
+                  const isHoliday = feriadoManager.isHoliday(day.date);
+                  const isSpecialPeriod = feriadoManager.isSpecialPeriod(
+                    day.date
+                  );
+                  const holidayInfo = feriadoManager.getHolidayInfo(day.date);
+
+                  return (
+                    <tr
+                      key={index}
+                      className={
+                        isHoliday || isSpecialPeriod
+                          ? "bg-red-50 border-red-200"
+                          : ""
+                      }
+                    >
+                      <td className="print-date">
+                        <strong className={isHoliday ? "text-red-600" : ""}>
+                          {format(day.date, "dd/MM", { locale: ptBR })}
+                        </strong>
+                        <br />
+                        <small className={isHoliday ? "text-red-500" : ""}>
+                          {format(day.date, "EEE", {
+                            locale: ptBR,
+                          }).toUpperCase()}
+                        </small>
+                        {isHoliday && holidayInfo && (
+                          <>
+                            <br />
+                            <small className="text-red-500 font-medium">
+                              🎄 {holidayInfo.nome}
+                            </small>
+                          </>
+                        )}
+                        {isSpecialPeriod && !isHoliday && (
+                          <>
+                            <br />
+                            <small className="text-orange-500 font-medium">
+                              ⭐ Período Especial
+                            </small>
+                          </>
+                        )}
+                      </td>
+                      {/* Células dinâmicas para cada especialização */}
+                      {Array.from(
+                        new Set(
+                          scaleMembers
+                            .map((m) => m.especializacaoNome)
+                            .filter(Boolean)
+                        )
+                      ).map((spec) => (
+                        <td key={spec} className="print-working">
+                          <div className="print-members">
+                            {(day.assignments[spec!] || []).map(
+                              (member, idx) => (
+                                <div key={member.id}>{member.nome}</div>
+                              )
+                            )}
+                          </div>
+                        </td>
+                      ))}
+                      {scaleMembers.some((m) => !m.especializacaoNome) && (
+                        <td className="print-working">
+                          <div className="print-members">
+                            {(day.assignments["Sem Especialização"] || []).map(
+                              (member, idx) => (
+                                <div key={member.id}>{member.nome}</div>
+                              )
+                            )}
+                          </div>
+                        </td>
+                      )}
+                      <td className="print-leave">
                         <div className="print-members">
-                          {(day.assignments[spec!] || []).map((member, idx) => (
+                          {day.onLeave.map((member, idx) => (
                             <div key={member.id}>{member.nome}</div>
                           ))}
                         </div>
                       </td>
-                    ))}
-                    {scaleMembers.some((m) => !m.especializacaoNome) && (
-                      <td className="print-working">
-                        <div className="print-members">
-                          {(day.assignments["Sem Especialização"] || []).map(
-                            (member, idx) => (
-                              <div key={member.id}>{member.nome}</div>
-                            )
-                          )}
-                        </div>
-                      </td>
-                    )}
-                    <td className="print-leave">
-                      <div className="print-members">
-                        {day.onLeave.map((member, idx) => (
-                          <div key={member.id}>{member.nome}</div>
-                        ))}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
 
