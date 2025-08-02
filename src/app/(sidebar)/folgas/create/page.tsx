@@ -116,6 +116,7 @@ export default function FolgasCreatePage() {
   const [selectedMemberToAdd, setSelectedMemberToAdd] = useState<Member | null>(
     null
   );
+  const [memberOnlyForLeaveCount, setMemberOnlyForLeaveCount] = useState(false);
 
   // Configurações de geração
   const [scaleGeneration, setScaleGeneration] = useState<ScaleGeneration>({
@@ -342,7 +343,11 @@ export default function FolgasCreatePage() {
     }
   }, [selectedDepartment]);
 
-  const addMemberToScale = (member: Member, especializacaoId?: string) => {
+  const addMemberToScale = (
+    member: Member,
+    especializacaoId?: string,
+    apenasContabilizaFolgas = false
+  ) => {
     if (scaleMembers.find((m) => m.id === member.id)) {
       toast.error("Este integrante já foi adicionado à escala");
       return;
@@ -361,15 +366,21 @@ export default function FolgasCreatePage() {
       ativo: true,
       especializacaoId: especializacaoId,
       especializacaoNome: especialização?.nome,
+      apenasContabilizaFolgas: apenasContabilizaFolgas,
     };
 
     setScaleMembers([...scaleMembers, newMember]);
     // Limpar a escala gerada quando adicionar/remover membros
     setGeneratedSchedule([]);
+
+    const statusMsg = apenasContabilizaFolgas
+      ? " (apenas contabiliza folgas - férias/licença)"
+      : "";
+
     toast.success(
       `${member.nome} adicionado à escala${
         especialização ? ` como ${especialização.nome}` : ""
-      }`
+      }${statusMsg}`
     );
   };
 
@@ -416,10 +427,18 @@ export default function FolgasCreatePage() {
       assignments: Record<string, EscalaFolgaMember[]>; // Por especialização
     }> = [];
 
-    // Agrupar membros por especialização
+    // Separar membros ativos (que trabalham) dos que apenas contabilizam folgas
+    const activeMembersOnly = scaleMembers.filter(
+      (member) => !member.apenasContabilizaFolgas
+    );
+    const membersOnlyForLeaveCount = scaleMembers.filter(
+      (member) => member.apenasContabilizaFolgas
+    );
+
+    // Agrupar membros ATIVOS por especialização
     const membersBySpecialization = new Map<string, EscalaFolgaMember[]>();
 
-    scaleMembers.forEach((member) => {
+    activeMembersOnly.forEach((member) => {
       const specKey = member.especializacaoNome || "Sem Especialização";
       if (!membersBySpecialization.has(specKey)) {
         membersBySpecialization.set(specKey, []);
@@ -431,15 +450,23 @@ export default function FolgasCreatePage() {
       });
     });
 
-    // Validar que cada especialização tem pelo menos 2 pessoas para rotação
+    // Validar que cada especialização tem pelo menos 2 pessoas ATIVAS para rotação
     for (const [specName, members] of membersBySpecialization.entries()) {
       if (members.length < 2) {
         toast.error(
-          `A especialização "${specName}" precisa de pelo menos 2 pessoas para gerar a escala de folgas`
+          `A especialização "${specName}" precisa de pelo menos 2 pessoas ATIVAS (não em férias/licença) para gerar a escala de folgas`
         );
         return;
       }
     }
+
+    // Criar cópia dos membros que só contabilizam folgas para atualizar suas folgas
+    const membersOnlyForLeaveCountCopy = membersOnlyForLeaveCount.map(
+      (member) => ({
+        ...member,
+        folgasAtuais: member.folgasIniciais,
+      })
+    );
 
     let currentDate = new Date(scaleGeneration.startDate);
     const endDate = new Date(scaleGeneration.endDate);
@@ -499,6 +526,14 @@ export default function FolgasCreatePage() {
           });
         }
 
+        // Adicionar membros que apenas contabilizam folgas (sempre de folga)
+        dayOnLeave.push(...membersOnlyForLeaveCountCopy);
+
+        // Atualizar folgas dos membros que apenas contabilizam
+        membersOnlyForLeaveCountCopy.forEach((member) => {
+          member.folgasAtuais += 1;
+        });
+
         schedule.push({
           date: new Date(currentDate),
           working: dayWorking,
@@ -510,15 +545,29 @@ export default function FolgasCreatePage() {
       currentDate = addDays(currentDate, 1);
     }
 
-    // Atualizar o estado com os valores finais de folgas
+    // Atualizar o estado com os valores finais de folgas (membros ativos + membros só de folga)
     const updatedScaleMembers = scaleMembers.map((member) => {
-      for (const [specName, specMembers] of membersBySpecialization.entries()) {
-        const updatedMember = specMembers.find((m) => m.id === member.id);
-        if (updatedMember) {
-          return { ...member, folgasAtuais: updatedMember.folgasAtuais };
+      if (member.apenasContabilizaFolgas) {
+        // Para membros que só contabilizam folgas
+        const updatedMember = membersOnlyForLeaveCountCopy.find(
+          (m) => m.id === member.id
+        );
+        return updatedMember
+          ? { ...member, folgasAtuais: updatedMember.folgasAtuais }
+          : member;
+      } else {
+        // Para membros ativos
+        for (const [
+          specName,
+          specMembers,
+        ] of membersBySpecialization.entries()) {
+          const updatedMember = specMembers.find((m) => m.id === member.id);
+          if (updatedMember) {
+            return { ...member, folgasAtuais: updatedMember.folgasAtuais };
+          }
         }
+        return member;
       }
-      return member;
     });
     setScaleMembers(updatedScaleMembers);
 
@@ -566,6 +615,7 @@ export default function FolgasCreatePage() {
         folgas_atuais: member.folgasAtuais,
         posicao_atual: member.posicaoAtual,
         ativo: member.ativo,
+        apenas_contabiliza_folgas: member.apenasContabilizaFolgas || false,
       }));
 
       const { error: participacoesError } = await supabase
@@ -1076,23 +1126,79 @@ export default function FolgasCreatePage() {
                         membersBySpec.get(specKey)!.push(member);
                       });
 
-                      return Array.from(membersBySpec.entries()).map(
-                        ([specName, members]) => (
-                          <div
-                            key={specName}
-                            className="border-l-2 border-blue-300 pl-3"
-                          >
-                            <p className="font-medium">{specName}:</p>
-                            <p>• Pessoas: {members.length}</p>
-                            <p>• Trabalham por dia: 1</p>
-                            <p>• Folgas por dia: {members.length - 1}</p>
-                            {members.length < 2 && (
-                              <p className="text-red-600 font-medium">
-                                ⚠️ Necessário pelo menos 2 pessoas para rotação
-                              </p>
-                            )}
+                      const activeMembersCount = scaleMembers.filter(
+                        (m) => !m.apenasContabilizaFolgas
+                      ).length;
+                      const membersOnlyForLeaveCount = scaleMembers.filter(
+                        (m) => m.apenasContabilizaFolgas
+                      ).length;
+
+                      return (
+                        <div className="space-y-3">
+                          {/* Resumo geral */}
+                          <div className="border-l-2 border-green-300 pl-3 bg-green-50 p-2 rounded">
+                            <p className="font-medium text-green-800">
+                              Resumo Geral:
+                            </p>
+                            <p className="text-green-700">
+                              • Total de integrantes: {scaleMembers.length}
+                            </p>
+                            <p className="text-green-700">
+                              • Ativos (rotação): {activeMembersCount}
+                            </p>
+                            <p className="text-green-700">
+                              • Apenas folgas (férias/licença):{" "}
+                              {membersOnlyForLeaveCount}
+                            </p>
                           </div>
-                        )
+
+                          {/* Por especialização */}
+                          {Array.from(membersBySpec.entries()).map(
+                            ([specName, members]) => {
+                              const activeMembers = members.filter(
+                                (m) => !m.apenasContabilizaFolgas
+                              );
+                              const onlyLeaveMembers = members.filter(
+                                (m) => m.apenasContabilizaFolgas
+                              );
+
+                              return (
+                                <div
+                                  key={specName}
+                                  className="border-l-2 border-blue-300 pl-3"
+                                >
+                                  <p className="font-medium">{specName}:</p>
+                                  <p>• Total de pessoas: {members.length}</p>
+                                  <p>
+                                    • Ativos para rotação:{" "}
+                                    {activeMembers.length}
+                                  </p>
+                                  {onlyLeaveMembers.length > 0 && (
+                                    <p className="text-yellow-700">
+                                      • Apenas folgas: {onlyLeaveMembers.length}
+                                    </p>
+                                  )}
+                                  {activeMembers.length > 0 && (
+                                    <>
+                                      <p>• Trabalham por dia: 1</p>
+                                      <p>
+                                        • Folgas por dia:{" "}
+                                        {activeMembers.length - 1}
+                                      </p>
+                                    </>
+                                  )}
+                                  {activeMembers.length < 2 &&
+                                    activeMembers.length > 0 && (
+                                      <p className="text-red-600 font-medium">
+                                        ⚠️ Necessário pelo menos 2 pessoas
+                                        ATIVAS para rotação
+                                      </p>
+                                    )}
+                                </div>
+                              );
+                            }
+                          )}
+                        </div>
                       );
                     })()}
                   </div>
@@ -1169,63 +1275,126 @@ export default function FolgasCreatePage() {
                       {selectedMemberToAdd && (
                         <div className="space-y-2">
                           <label className="text-sm font-medium">
-                            Especialização para {selectedMemberToAdd.nome}
+                            Configurações para {selectedMemberToAdd.nome}
                           </label>
+
+                          {/* Checkbox para apenas contabilizar folgas */}
+                          <div className="flex items-center space-x-2 p-3rounded">
+                            <Checkbox
+                              id="apenasContabilizaFolgas"
+                              checked={memberOnlyForLeaveCount}
+                              onCheckedChange={(checked) =>
+                                setMemberOnlyForLeaveCount(checked === true)
+                              }
+                            />
+                            <label
+                              htmlFor="apenasContabilizaFolgas"
+                              className="text-sm font-medium cursor-pointer"
+                            >
+                              Apenas contabilizar folgas (férias/licença)
+                            </label>
+                          </div>
+                          {memberOnlyForLeaveCount && (
+                            <p className="text-xs text-yellow-700 bg-yellow-50 p-2 rounded">
+                              ℹ️ Este integrante não participará da rotação de
+                              trabalho, apenas acumulará folgas todos os dias
+                              (ideal para quem está de férias ou licença).
+                            </p>
+                          )}
+
                           <div className="space-y-2">
-                            <Select
-                              onValueChange={(especializacaoId) => {
-                                addMemberToScale(
-                                  selectedMemberToAdd,
-                                  especializacaoId === "none"
-                                    ? undefined
-                                    : especializacaoId
-                                );
-                                setSelectedMemberToAdd(null);
-                              }}
-                              value=""
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Escolha uma especialização" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="none">
-                                  <span className="text-muted-foreground">
-                                    Sem especialização
-                                  </span>
-                                </SelectItem>
-                                {/* Mostrar especializações do integrante se ele tiver, senão mostrar todas */}
-                                {(selectedMemberToAdd.especializacoes &&
-                                selectedMemberToAdd.especializacoes.length > 0
-                                  ? selectedMemberToAdd.especializacoes
-                                      .map((e) =>
-                                        specializations.find(
-                                          (s) => s.id === e.id
-                                        )
-                                      )
-                                      .filter(Boolean)
-                                  : specializations
-                                ).map((spec) => (
-                                  <SelectItem key={spec!.id} value={spec!.id}>
-                                    {spec!.nome}
-                                    {selectedMemberToAdd.especializacoes?.find(
-                                      (e) => e.id === spec!.id
-                                    ) && (
-                                      <span className="text-xs text-blue-600 ml-2">
-                                        (Cadastrada)
+                            {!memberOnlyForLeaveCount && (
+                              <div className="space-y-2">
+                                <label className="text-sm font-medium">
+                                  Selecionar Integrante
+                                </label>
+                                <Select
+                                  onValueChange={(especializacaoId) => {
+                                    addMemberToScale(
+                                      selectedMemberToAdd,
+                                      especializacaoId === "none"
+                                        ? undefined
+                                        : especializacaoId,
+                                      memberOnlyForLeaveCount
+                                    );
+                                    setSelectedMemberToAdd(null);
+                                    setMemberOnlyForLeaveCount(false);
+                                  }}
+                                  value=""
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Escolha uma especialização" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="none">
+                                      <span className="text-muted-foreground">
+                                        Sem especialização
                                       </span>
-                                    )}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setSelectedMemberToAdd(null)}
-                              className="w-full"
-                            >
-                              Cancelar
-                            </Button>
+                                    </SelectItem>
+                                    {/* Mostrar especializações do integrante se ele tiver, senão mostrar todas */}
+                                    {(selectedMemberToAdd.especializacoes &&
+                                    selectedMemberToAdd.especializacoes.length >
+                                      0
+                                      ? selectedMemberToAdd.especializacoes
+                                          .map((e) =>
+                                            specializations.find(
+                                              (s) => s.id === e.id
+                                            )
+                                          )
+                                          .filter(Boolean)
+                                      : specializations
+                                    ).map((spec) => (
+                                      <SelectItem
+                                        key={spec!.id}
+                                        value={spec!.id}
+                                      >
+                                        {spec!.nome}
+                                        {selectedMemberToAdd.especializacoes?.find(
+                                          (e) => e.id === spec!.id
+                                        ) && (
+                                          <span className="text-xs text-blue-600 ml-2">
+                                            (Cadastrada)
+                                          </span>
+                                        )}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            )}
+
+                            <div className="flex gap-2">
+                              {memberOnlyForLeaveCount && (
+                                <Button
+                                  onClick={() => {
+                                    addMemberToScale(
+                                      selectedMemberToAdd,
+                                      undefined,
+                                      memberOnlyForLeaveCount
+                                    );
+                                    setSelectedMemberToAdd(null);
+                                    setMemberOnlyForLeaveCount(false);
+                                  }}
+                                  size="sm"
+                                  className="flex-1"
+                                >
+                                  Adicionar (Apenas Folgas)
+                                </Button>
+                              )}
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedMemberToAdd(null);
+                                  setMemberOnlyForLeaveCount(false);
+                                }}
+                                className={
+                                  memberOnlyForLeaveCount ? "flex-1" : "w-full"
+                                }
+                              >
+                                Cancelar
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       )}
@@ -1349,35 +1518,6 @@ export default function FolgasCreatePage() {
                     {scaleMembers.length !== 1 ? "s" : ""}
                   </CardDescription>
                 </div>
-                <div className="flex gap-2">
-                  {generatedSchedule.length > 0 && (
-                    <>
-                      <Button onClick={printScale} variant="outline" size="sm">
-                        <PrinterIcon className="mr-2 h-4 w-4" />
-                        Imprimir
-                      </Button>
-                      <Button
-                        onClick={saveScale}
-                        disabled={
-                          !scaleName.trim() ||
-                          scaleMembers.length === 0 ||
-                          generatedSchedule.length === 0 ||
-                          loading
-                        }
-                        size="sm"
-                      >
-                        {loading ? (
-                          "Salvando..."
-                        ) : (
-                          <>
-                            <Save className="mr-2 h-4 w-4" />
-                            Salvar Escala
-                          </>
-                        )}
-                      </Button>
-                    </>
-                  )}
-                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -1399,7 +1539,9 @@ export default function FolgasCreatePage() {
                     {scaleMembers.map((member) => (
                       <div
                         key={member.id}
-                        className="flex justify-between items-center p-3 bg-muted/50 rounded"
+                        className={`flex justify-between items-center p-3 rounded ${
+                          member.apenasContabilizaFolgas ? "" : "bg-muted/50"
+                        }`}
                       >
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
@@ -1412,7 +1554,22 @@ export default function FolgasCreatePage() {
                                 {member.especializacaoNome}
                               </Badge>
                             )}
+                            {member.apenasContabilizaFolgas && (
+                              <Badge
+                                variant="destructive"
+                                className="bg-yellow-600"
+                              >
+                                Apenas Folgas
+                              </Badge>
+                            )}
                           </div>
+                          {member.apenasContabilizaFolgas && (
+                            <p className="text-xs text-red-700 mt-1">
+                              🏖️ Este integrante está de férias/licença e apenas
+                              contabiliza folgas
+                            </p>
+                          )}
+
                           <div className="flex items-center gap-4 mt-2">
                             <div className="flex items-center gap-2">
                               <TooltipProvider>
@@ -1498,6 +1655,39 @@ export default function FolgasCreatePage() {
                       />
                     </div>
                   )}
+                  <div className="flex gap-2 justify-end">
+                    {generatedSchedule.length > 0 && (
+                      <>
+                        <Button
+                          onClick={printScale}
+                          variant="outline"
+                          size="sm"
+                        >
+                          <PrinterIcon className="mr-2 h-4 w-4" />
+                          Imprimir
+                        </Button>
+                        <Button
+                          onClick={saveScale}
+                          disabled={
+                            !scaleName.trim() ||
+                            scaleMembers.length === 0 ||
+                            generatedSchedule.length === 0 ||
+                            loading
+                          }
+                          size="sm"
+                        >
+                          {loading ? (
+                            "Salvando..."
+                          ) : (
+                            <>
+                              <Save className="mr-2 h-4 w-4" />
+                              Salvar Escala
+                            </>
+                          )}
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 </div>
               )}
             </CardContent>

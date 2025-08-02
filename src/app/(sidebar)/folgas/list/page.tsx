@@ -33,6 +33,7 @@ import { toast } from "sonner";
 import { EscalaFolgaType } from "@/types/escala-folgas";
 import FilterBar from "@/components/filters/FilterBar";
 import Pagination from "@/components/pagination/Pagination";
+import { NavigationButton } from "@/components/ui/navigation-button";
 
 interface Organization {
   id: string;
@@ -548,18 +549,20 @@ export default function FolgasListPage() {
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex gap-1 justify-end">
-                              <Link href={`/folgas/view?id=${scale.id}`}>
-                                <Button variant="outline" size="sm">
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-                              </Link>
-                              <Button
+                              <NavigationButton
+                                href={`/folgas/view?id=${scale.id}`}
+                                variant="outline"
+                                size="sm"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </NavigationButton>
+                              {/* <Button
                                 variant="outline"
                                 size="sm"
                                 onClick={() => openDeleteDialog(scale)}
                               >
                                 <Trash2 className="h-4 w-4" />
-                              </Button>
+                              </Button> */}
                             </div>
                           </TableCell>
                         </TableRow>

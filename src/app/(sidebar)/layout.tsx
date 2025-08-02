@@ -42,7 +42,7 @@ export default function RootLayout({
                       className="mr-2 data-[orientation=vertical]:h-4"
                     />
                   </div>
-                  <ModeToggle />
+                  {/* <ModeToggle /> */}
                 </header>
                 <Suspense
                   fallback={

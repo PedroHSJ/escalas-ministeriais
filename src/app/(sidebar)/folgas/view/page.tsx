@@ -48,6 +48,7 @@ import {
   EscalaFolgaAtribuicaoType,
 } from "@/types/escala-folgas";
 import CalendarTable from "@/components/calendar/CalendarTable";
+import { NavigationButton } from "@/components/ui/navigation-button";
 
 export default function FolgasViewPage() {
   const searchParams = useSearchParams();
@@ -763,12 +764,14 @@ export default function FolgasViewPage() {
         {/* Cabeçalho */}
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-4">
-            <Link href="/folgas/list">
-              <Button variant="outline" size="sm">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Voltar
-              </Button>
-            </Link>
+            <NavigationButton
+              href="/folgas/list"
+              className="hidden md:inline-flex"
+              variant="outline"
+              size="sm"
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+            </NavigationButton>
             <div>
               <h1 className="text-2xl lg:text-3xl font-bold">{scale.nome}</h1>
               <div className="flex items-center gap-2 text-muted-foreground">

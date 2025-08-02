@@ -24,6 +24,7 @@ export interface EscalaFolgaParticipacaoType {
   folgas_atuais: number;
   posicao_atual: number;
   ativo: boolean;
+  apenas_contabiliza_folgas?: boolean; // Para integrantes de férias/licença
   created_at: string;
   integrante?: {
     id: string;
@@ -58,6 +59,7 @@ export interface EscalaFolgaMember {
   ativo: boolean;
   especializacaoId?: string;
   especializacaoNome?: string;
+  apenasContabilizaFolgas?: boolean; // Para integrantes de férias/licença que só contabilizam folgas
 }
 
 export interface EscalaFolgaAssignment {

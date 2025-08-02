@@ -31,6 +31,7 @@ import { toast } from "sonner";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { useOrganization } from "@/contexts/OrganizationContext";
 
 interface Organization {
   id: string;
@@ -71,7 +72,8 @@ export default function Page() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [specializations, setSpecializations] = useState<Specialization[]>([]);
-  const [selectedOrganization, setSelectedOrganization] = useState("");
+  // const [selectedOrganization, setSelectedOrganization] = useState("");
+  const { selectedOrganization } = useOrganization();
   const [selectedDepartment, setSelectedDepartment] = useState("");
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [loading, setLoading] = useState(false);
@@ -194,7 +196,7 @@ export default function Page() {
 
       // Configurar os selects automaticamente
       if (data.departamentos) {
-        setSelectedOrganization(data.departamentos.organizacao_id);
+        // setSelectedOrganization(data.departamentos.organizacao_id);
         setSelectedDepartment(data.departamento_id);
       }
 
@@ -211,8 +213,8 @@ export default function Page() {
 
   useEffect(() => {
     if (selectedOrganization) {
-      fetchDepartments(selectedOrganization);
-      fetchSpecializations(selectedOrganization);
+      fetchDepartments(selectedOrganization.id);
+      fetchSpecializations(selectedOrganization.id);
       if (!editId) {
         setSelectedDepartment("");
         setMembers([]);
@@ -395,12 +397,10 @@ export default function Page() {
                 <Building2 className="h-5 w-5" />
                 Filtros
               </CardTitle>
-              <CardDescription>
-                Selecione organização e departamento
-              </CardDescription>
+              <CardDescription>Selecione o departamento</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
+              {/* <div className="space-y-2">
                 <label className="text-sm font-medium">Organização</label>
                 <Select
                   value={selectedOrganization}
@@ -417,7 +417,7 @@ export default function Page() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
+              </div> */}
 
               <div className="space-y-2">
                 <label className="text-sm font-medium">Departamento</label>
