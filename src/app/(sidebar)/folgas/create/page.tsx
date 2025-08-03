@@ -161,8 +161,8 @@ export default function FolgasCreatePage() {
       .map((day) => {
         // Garante que a data seja formatada consistentemente
         const year = day.date.getFullYear();
-        const month = String(day.date.getMonth() + 1).padStart(2, '0');
-        const dayNum = String(day.date.getDate()).padStart(2, '0');
+        const month = String(day.date.getMonth() + 1).padStart(2, "0");
+        const dayNum = String(day.date.getDate()).padStart(2, "0");
         return `${year}-${month}-${dayNum}`;
       })
       .sort();
@@ -194,26 +194,37 @@ export default function FolgasCreatePage() {
     scaleMembers.forEach((member) => {
       calendarMatrix[member.nome] = {};
 
-      // Calcular códigos para cada data
-      let consecutiveDaysOff = 0;
+      // Contadores separados para cada tipo de escala
+      let consecutiveDaysOffPreta = 0;
+      let consecutiveDaysOffVermelha = 0;
+
       dates.forEach((dateStr) => {
         const day = generatedSchedule.find((d) => {
           // Usar formato consistente para comparação
           const year = d.date.getFullYear();
-          const month = String(d.date.getMonth() + 1).padStart(2, '0');
-          const dayNum = String(d.date.getDate()).padStart(2, '0');
+          const month = String(d.date.getMonth() + 1).padStart(2, "0");
+          const dayNum = String(d.date.getDate()).padStart(2, "0");
           const generatedDateStr = `${year}-${month}-${dayNum}`;
           return generatedDateStr === dateStr;
         });
 
         if (!day) return;
 
+        // Determinar se é escala preta ou vermelha
+        const dayOfWeek = day.date.getDay(); // 0 = domingo, 6 = sábado
+        const isEscalaVermelha = dayOfWeek === 0 || dayOfWeek === 6;
+        const isEscalaPreta = !isEscalaVermelha;
+
         const isWorking = day.working.some((w) => w.id === member.id);
         const isOnLeave = day.onLeave.some((l) => l.id === member.id);
 
         if (isWorking) {
-          // Dia de trabalho = código 0
-          consecutiveDaysOff = 0;
+          // Dia de trabalho - resetar apenas o contador da escala correspondente
+          if (isEscalaPreta) {
+            consecutiveDaysOffPreta = 0;
+          } else {
+            consecutiveDaysOffVermelha = 0;
+          }
 
           calendarMatrix[member.nome][dateStr] = {
             codigo: 0, // 0 para trabalhando
@@ -222,11 +233,19 @@ export default function FolgasCreatePage() {
             color: "#bbf7d0", // Verde claro para trabalho
           };
         } else if (isOnLeave) {
-          // Dia de folga = incrementar contador
-          consecutiveDaysOff++;
+          // Dia de folga - incrementar contador da escala correspondente
+          let codigoFolga: number;
+
+          if (isEscalaPreta) {
+            consecutiveDaysOffPreta++;
+            codigoFolga = consecutiveDaysOffPreta;
+          } else {
+            consecutiveDaysOffVermelha++;
+            codigoFolga = consecutiveDaysOffVermelha;
+          }
 
           calendarMatrix[member.nome][dateStr] = {
-            codigo: consecutiveDaysOff,
+            codigo: codigoFolga,
             especializacao: member.especializacaoNome,
             tipo: "folga",
             color: "#fecaca", // Vermelho claro para folga
@@ -540,6 +559,16 @@ export default function FolgasCreatePage() {
     }
   }, [selectedDepartment]);
 
+  // Effect para seleção automática de departamento quando há apenas um
+  useEffect(() => {
+    if (departments.length === 1 && !selectedDepartment) {
+      setSelectedDepartment(departments[0].id);
+      toast.info("Departamento selecionado automaticamente", {
+        description: `${departments[0].nome} foi selecionado por ser o único disponível.`,
+      });
+    }
+  }, [departments, selectedDepartment]);
+
   const addMemberToScale = (
     member: Member,
     especializacaoId?: string,
@@ -591,6 +620,91 @@ export default function FolgasCreatePage() {
     setScaleMembers(scaleMembers.filter((m) => m.id !== memberId));
     setGeneratedSchedule([]);
     toast.success("Integrante removido da escala");
+  };
+
+  const addAllMembersToScale = () => {
+    const availableMembers = members.filter(
+      (member) => !scaleMembers.find((sm) => sm.id === member.id)
+    );
+
+    if (availableMembers.length === 0) {
+      toast.info("Todos os integrantes já foram adicionados à escala");
+      return;
+    }
+
+    let addedCount = 0;
+
+    availableMembers.forEach((member) => {
+      // Verificar especializações disponíveis para o membro
+      const availableSpecs =
+        member.especializacoes && member.especializacoes.length > 0
+          ? member.especializacoes
+              .map((e) => specializations.find((s) => s.id === e.id))
+              .filter(Boolean)
+          : specializations;
+
+      // Se há apenas uma especialização, usar ela; se há várias, usar a primeira; se não há nenhuma, usar undefined
+      const selectedSpecId =
+        availableSpecs.length === 1
+          ? availableSpecs[0]!.id
+          : availableSpecs.length > 1
+          ? availableSpecs[0]!.id // Usar a primeira especialização
+          : undefined;
+
+      const especialização = selectedSpecId
+        ? specializations.find((s) => s.id === selectedSpecId)
+        : null;
+
+      const newMember: EscalaFolgaMember = {
+        id: member.id,
+        nome: member.nome,
+        folgasIniciais: 0,
+        folgasAtuais: 0,
+        folgasInicaisPreta: 0,
+        folgasAtualPreta: 0,
+        folgasIniciaisVermelha: 0,
+        folgasAtualVermelha: 0,
+        posicaoAtual: scaleMembers.length + addedCount + 1,
+        ativo: true,
+        especializacaoId: selectedSpecId,
+        especializacaoNome: especialização?.nome,
+        apenasContabilizaFolgas: false,
+        tipoParticipacao: "ambas",
+      };
+
+      scaleMembers.push(newMember);
+      addedCount++;
+    });
+
+    setScaleMembers([...scaleMembers]);
+    setGeneratedSchedule([]);
+
+    toast.success(
+      `${addedCount} integrante${addedCount !== 1 ? "s" : ""} adicionado${
+        addedCount !== 1 ? "s" : ""
+      } à escala`,
+      {
+        description:
+          "Você pode ajustar as especializações e configurações individualmente se necessário",
+      }
+    );
+  };
+
+  const removeAllMembersFromScale = () => {
+    if (scaleMembers.length === 0) {
+      toast.info("Não há integrantes na escala para remover");
+      return;
+    }
+
+    const count = scaleMembers.length;
+    setScaleMembers([]);
+    setGeneratedSchedule([]);
+
+    toast.success(
+      `${count} integrante${count !== 1 ? "s" : ""} removido${
+        count !== 1 ? "s" : ""
+      } da escala`
+    );
   };
 
   const updateMemberFolgas = (memberId: string, folgasIniciais: number) => {
@@ -764,7 +878,7 @@ export default function FolgasCreatePage() {
         // Verificar se é feriado nacional ou local
         const isHoliday = feriadoManager.isHoliday(currentDate);
         const isSpecialPeriod = feriadoManager.isSpecialPeriod(currentDate);
-        
+
         // Calcular incremento de folgas uma única vez
         const folgasIncrement = isHoliday || isSpecialPeriod ? 1.5 : 1;
 
@@ -781,11 +895,14 @@ export default function FolgasCreatePage() {
           // Separar membros que podem participar da escala atual e os que são automaticamente folga
           const availableMembers: any[] = [];
           const automaticLeaveMembers: any[] = [];
-          
+
           specMembers.forEach((member) => {
             if (isEscalaPreta && member.tipoParticipacao === "vermelha") {
               automaticLeaveMembers.push(member); // Membro só participa da escala vermelha, fica automaticamente de folga em dia de semana
-            } else if (isEscalaVermelha && member.tipoParticipacao === "preta") {
+            } else if (
+              isEscalaVermelha &&
+              member.tipoParticipacao === "preta"
+            ) {
               automaticLeaveMembers.push(member); // Membro só participa da escala preta, fica automaticamente de folga no fim de semana
             } else {
               availableMembers.push(member); // Membro pode participar desta escala
@@ -794,7 +911,7 @@ export default function FolgasCreatePage() {
 
           // Adicionar membros de folga automática baseados no tipo de participação
           dayOnLeave.push(...automaticLeaveMembers);
-          
+
           // Atualizar folgas dos membros de folga automática
           automaticLeaveMembers.forEach((member) => {
             const originalMember = membersBySpecialization
@@ -1479,9 +1596,7 @@ export default function FolgasCreatePage() {
 
               {/* Seleção de Template de Observações */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">
-                  Template de Observações
-                </label>
+                <label className="text-sm font-medium">Observações</label>
                 <Select
                   value={selectedObservacaoTemplate}
                   onValueChange={setSelectedObservacaoTemplate}
@@ -1491,7 +1606,7 @@ export default function FolgasCreatePage() {
                     <SelectValue placeholder="Selecione um template (opcional)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">Nenhum template</SelectItem>
+                    <SelectItem value="none">Nenhuma</SelectItem>
                     {observacaoTemplates.map((template) => (
                       <SelectItem key={template.id} value={template.id}>
                         <div className="flex flex-col">
@@ -1627,29 +1742,69 @@ export default function FolgasCreatePage() {
                 <div className="border-t pt-4">
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="font-medium">Adicionar Integrante</h4>
-                    {availableScales.length > 0 && (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setShowImportDialog(true)}
-                              className="text-blue-600 border-blue-200 hover:bg-blue-50"
-                            >
-                              <Download className="h-4 w-4 mr-2" />
-                              Importar de Escala Anterior
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>
-                              Importar integrantes e folgas de uma escala já
-                              criada
-                            </p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    )}
+                    <div className="flex gap-2">
+                      {/* Botão Adicionar Todos */}
+                      {members.filter(
+                        (member) =>
+                          !scaleMembers.find((sm) => sm.id === member.id)
+                      ).length > 0 && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={addAllMembersToScale}
+                                className="text-green-600 border-green-200 hover:bg-green-50"
+                              >
+                                <Users className="h-4 w-4 mr-2" />
+                                Adicionar Todos (
+                                {
+                                  members.filter(
+                                    (member) =>
+                                      !scaleMembers.find(
+                                        (sm) => sm.id === member.id
+                                      )
+                                  ).length
+                                }
+                                )
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>
+                                Adicionar todos os integrantes disponíveis do
+                                departamento à escala
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+
+                      {/* Botão Importar de Escala Anterior */}
+                      {availableScales.length > 0 && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setShowImportDialog(true)}
+                                className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                              >
+                                <Download className="h-4 w-4 mr-2" />
+                                Importar de Escala Anterior
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>
+                                Importar integrantes e folgas de uma escala já
+                                criada
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+                    </div>
                   </div>
 
                   {members.length === 0 ? (
@@ -1679,6 +1834,32 @@ export default function FolgasCreatePage() {
                               !scaleMembers.find((sm) => sm.id === member.id)
                             ) {
                               setSelectedMemberToAdd(member);
+
+                              // Verificar se há apenas uma especialização disponível
+                              const availableSpecs =
+                                member.especializacoes &&
+                                member.especializacoes.length > 0
+                                  ? member.especializacoes
+                                      .map((e) =>
+                                        specializations.find(
+                                          (s) => s.id === e.id
+                                        )
+                                      )
+                                      .filter(Boolean)
+                                  : specializations;
+
+                              // Se há apenas uma especialização disponível, adicionar automaticamente
+                              if (availableSpecs.length === 1) {
+                                setTimeout(() => {
+                                  addMemberToScale(
+                                    member,
+                                    availableSpecs[0]!.id,
+                                    false
+                                  );
+                                  setSelectedMemberToAdd(null);
+                                  setMemberOnlyForLeaveCount(false);
+                                }, 100);
+                              }
                             }
                           }}
                           value={selectedMemberToAdd?.id || ""}
@@ -1748,33 +1929,11 @@ export default function FolgasCreatePage() {
                             {!memberOnlyForLeaveCount && (
                               <div className="space-y-2">
                                 <label className="text-sm font-medium">
-                                  Selecionar Integrante
+                                  Selecionar Especialização
                                 </label>
-                                <Select
-                                  onValueChange={(especializacaoId) => {
-                                    addMemberToScale(
-                                      selectedMemberToAdd,
-                                      especializacaoId === "none"
-                                        ? undefined
-                                        : especializacaoId,
-                                      memberOnlyForLeaveCount
-                                    );
-                                    setSelectedMemberToAdd(null);
-                                    setMemberOnlyForLeaveCount(false);
-                                  }}
-                                  value=""
-                                >
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Escolha uma especialização" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="none">
-                                      <span className="text-muted-foreground">
-                                        Sem especialização
-                                      </span>
-                                    </SelectItem>
-                                    {/* Mostrar especializações do integrante se ele tiver, senão mostrar todas */}
-                                    {(selectedMemberToAdd.especializacoes &&
+                                {(() => {
+                                  const availableSpecs =
+                                    selectedMemberToAdd.especializacoes &&
                                     selectedMemberToAdd.especializacoes.length >
                                       0
                                       ? selectedMemberToAdd.especializacoes
@@ -1784,24 +1943,72 @@ export default function FolgasCreatePage() {
                                             )
                                           )
                                           .filter(Boolean)
-                                      : specializations
-                                    ).map((spec) => (
-                                      <SelectItem
-                                        key={spec!.id}
-                                        value={spec!.id}
-                                      >
-                                        {spec!.nome}
-                                        {selectedMemberToAdd.especializacoes?.find(
-                                          (e) => e.id === spec!.id
-                                        ) && (
-                                          <span className="text-xs text-blue-600 ml-2">
-                                            (Cadastrada)
+                                      : specializations;
+
+                                  // Se há apenas uma especialização, mostrar info e adicionar automaticamente
+                                  if (availableSpecs.length === 1) {
+                                    return (
+                                      <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                                        <div className="flex items-center gap-2">
+                                          <div className="text-sm font-medium text-green-800">
+                                            ✓ Especialização selecionada
+                                            automaticamente:{" "}
+                                            {availableSpecs[0]!.nome}
+                                          </div>
+                                        </div>
+                                        <p className="text-xs text-green-700 mt-1">
+                                          Como há apenas uma especialização
+                                          disponível, ela foi selecionada
+                                          automaticamente.
+                                        </p>
+                                      </div>
+                                    );
+                                  }
+
+                                  // Se há múltiplas especializações, mostrar o select normal
+                                  return (
+                                    <Select
+                                      onValueChange={(especializacaoId) => {
+                                        addMemberToScale(
+                                          selectedMemberToAdd,
+                                          especializacaoId === "none"
+                                            ? undefined
+                                            : especializacaoId,
+                                          memberOnlyForLeaveCount
+                                        );
+                                        setSelectedMemberToAdd(null);
+                                        setMemberOnlyForLeaveCount(false);
+                                      }}
+                                      value=""
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Escolha uma especialização" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="none">
+                                          <span className="text-muted-foreground">
+                                            Sem especialização
                                           </span>
-                                        )}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
+                                        </SelectItem>
+                                        {availableSpecs.map((spec) => (
+                                          <SelectItem
+                                            key={spec!.id}
+                                            value={spec!.id}
+                                          >
+                                            {spec!.nome}
+                                            {selectedMemberToAdd.especializacoes?.find(
+                                              (e) => e.id === spec!.id
+                                            ) && (
+                                              <span className="text-xs text-blue-600 ml-2">
+                                                (Cadastrada)
+                                              </span>
+                                            )}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  );
+                                })()}
                               </div>
                             )}
 
@@ -1975,6 +2182,26 @@ export default function FolgasCreatePage() {
                     {scaleMembers.length !== 1 ? "s" : ""}
                   </CardDescription>
                 </div>
+                {scaleMembers.length > 0 && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={removeAllMembersFromScale}
+                          className="text-red-600 border-red-200 hover:bg-red-50"
+                        >
+                          <X className="h-4 w-4 mr-2" />
+                          Remover Todos
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Remover todos os integrantes da escala</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
               </div>
             </CardHeader>
             <CardContent>
@@ -2194,57 +2421,25 @@ export default function FolgasCreatePage() {
                   <div className="flex gap-2 justify-end">
                     {generatedSchedule.length > 0 && (
                       <>
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                onClick={printScale}
-                                variant="outline"
-                                size="sm"
-                              >
-                                <PrinterIcon className="mr-2 h-4 w-4" />
-                                Imprimir
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>
-                                Imprime a escala gerada com formatação
-                                profissional
-                              </p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                onClick={saveScale}
-                                disabled={
-                                  !scaleName.trim() ||
-                                  scaleMembers.length === 0 ||
-                                  generatedSchedule.length === 0 ||
-                                  loading
-                                }
-                                size="sm"
-                              >
-                                {loading ? (
-                                  "Salvando..."
-                                ) : (
-                                  <>
-                                    <Save className="mr-2 h-4 w-4" />
-                                    Salvar Escala
-                                  </>
-                                )}
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>
-                                Salva a escala no banco de dados para consulta
-                                posterior
-                              </p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
+                        <Button
+                          onClick={saveScale}
+                          disabled={
+                            !scaleName.trim() ||
+                            scaleMembers.length === 0 ||
+                            generatedSchedule.length === 0 ||
+                            loading
+                          }
+                          size="sm"
+                        >
+                          {loading ? (
+                            "Salvando..."
+                          ) : (
+                            <>
+                              <Save className="mr-2 h-4 w-4" />
+                              Salvar Escala
+                            </>
+                          )}
+                        </Button>
                       </>
                     )}
                   </div>

@@ -224,6 +224,16 @@ export default function Page() {
     }
   }, [selectedOrganization]);
 
+  // Effect para seleção automática de departamento quando há apenas um
+  useEffect(() => {
+    if (departments.length === 1 && !selectedDepartment && !editId) {
+      setSelectedDepartment(departments[0].id);
+      toast.info("Departamento selecionado automaticamente", {
+        description: `${departments[0].nome} foi selecionado por ser o único disponível.`,
+      });
+    }
+  }, [departments, selectedDepartment, editId]);
+
   useEffect(() => {
     if (selectedDepartment) {
       fetchMembers(selectedDepartment);
@@ -421,22 +431,39 @@ export default function Page() {
 
               <div className="space-y-2">
                 <label className="text-sm font-medium">Departamento</label>
-                <Select
-                  value={selectedDepartment}
-                  onValueChange={setSelectedDepartment}
-                  disabled={!selectedOrganization}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione um departamento" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {departments.map((dept) => (
-                      <SelectItem key={dept.id} value={dept.id}>
-                        {dept.nome} ({dept.tipo_departamento})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {departments.length === 1 &&
+                selectedDepartment === departments[0].id ? (
+                  <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                    <div className="flex items-center gap-2">
+                      <div className="text-sm font-medium text-green-800">
+                        ✓ Departamento selecionado automaticamente:{" "}
+                        {departments[0].nome} (
+                        {departments[0].tipo_departamento})
+                      </div>
+                    </div>
+                    <p className="text-xs text-green-700 mt-1">
+                      Como há apenas um departamento disponível, ele foi
+                      selecionado automaticamente.
+                    </p>
+                  </div>
+                ) : (
+                  <Select
+                    value={selectedDepartment}
+                    onValueChange={setSelectedDepartment}
+                    disabled={!selectedOrganization}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione um departamento" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {departments.map((dept) => (
+                        <SelectItem key={dept.id} value={dept.id}>
+                          {dept.nome} ({dept.tipo_departamento})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
 
               <div className="space-y-4 pt-4">

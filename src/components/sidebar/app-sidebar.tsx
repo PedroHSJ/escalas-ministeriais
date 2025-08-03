@@ -63,11 +63,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             url: "/departments/list",
             isActive: pathname.startsWith("/departments"),
           },
-          // {
-          //   title: "Especializações",
-          //   url: "/specializations/list",
-          //   isActive: pathname.startsWith("/specializations"),
-          // },
+          {
+            title: "Especializações",
+            url: "/specializations/list",
+            isActive: pathname.startsWith("/specializations"),
+          },
           {
             title: "Membros",
             url: "/members/list",

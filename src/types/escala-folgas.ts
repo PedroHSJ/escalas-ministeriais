@@ -25,6 +25,7 @@ export interface EscalaFolgaParticipacaoType {
   posicao_atual: number;
   ativo: boolean;
   apenas_contabiliza_folgas?: boolean; // Para integrantes de férias/licença
+  tipo_participacao?: TipoParticipacaoEscala; // Tipo de participação na escala
   created_at: string;
   integrante?: {
     id: string;

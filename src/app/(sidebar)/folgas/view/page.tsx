@@ -244,11 +244,20 @@ export default function FolgasViewPage() {
     participations.forEach((p) => {
       if (p.integrante?.nome) {
         const memberName = p.integrante.nome;
+        const tipoParticipacao = p.tipo_participacao;
         calendarMatrix[memberName] = {};
 
-        // Calcular códigos para cada data
-        let consecutiveDaysOff = 0;
+        // Contadores separados para cada tipo de escala
+        let consecutiveDaysOffPreta = 0;
+        let consecutiveDaysOffVermelha = 0;
+
         dates.forEach((date) => {
+          // Determinar se é escala preta ou vermelha
+          const dateObj = new Date(date);
+          const dayOfWeek = dateObj.getDay(); // 0 = domingo, 6 = sábado
+          const isEscalaVermelha = dayOfWeek === 0 || dayOfWeek === 6;
+          const isEscalaPreta = !isEscalaVermelha;
+
           // Buscar atribuição de trabalho para este membro nesta data
           const workAssignment = assignments.find(
             (a) =>
@@ -266,8 +275,12 @@ export default function FolgasViewPage() {
           );
 
           if (workAssignment) {
-            // Dia de trabalho = código 0
-            consecutiveDaysOff = 0;
+            // Dia de trabalho - resetar apenas o contador da escala correspondente
+            if (isEscalaPreta) {
+              consecutiveDaysOffPreta = 0;
+            } else {
+              consecutiveDaysOffVermelha = 0;
+            }
 
             const especializacaoNome =
               workAssignment.especializacao?.nome || workAssignment.observacao;
@@ -279,11 +292,19 @@ export default function FolgasViewPage() {
               color: "#bbf7d0", // verde claro para trabalho
             };
           } else if (leaveAssignment) {
-            // Dia de folga = incrementar contador
-            consecutiveDaysOff++;
+            // Dia de folga - incrementar contador da escala correspondente
+            let codigoFolga: number;
+
+            if (isEscalaPreta) {
+              consecutiveDaysOffPreta++;
+              codigoFolga = consecutiveDaysOffPreta;
+            } else {
+              consecutiveDaysOffVermelha++;
+              codigoFolga = consecutiveDaysOffVermelha;
+            }
 
             calendarMatrix[memberName][date] = {
-              codigo: consecutiveDaysOff,
+              codigo: codigoFolga,
               tipo: "folga",
               color: "#fecaca", // vermelho claro para folga
             };
