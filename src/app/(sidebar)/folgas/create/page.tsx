@@ -764,6 +764,9 @@ export default function FolgasCreatePage() {
         // Verificar se é feriado nacional ou local
         const isHoliday = feriadoManager.isHoliday(currentDate);
         const isSpecialPeriod = feriadoManager.isSpecialPeriod(currentDate);
+        
+        // Calcular incremento de folgas uma única vez
+        const folgasIncrement = isHoliday || isSpecialPeriod ? 1.5 : 1;
 
         // Determinar se é escala preta (dias de semana) ou vermelha (finais de semana)
         const dayOfWeekNumber = currentDate.getDay(); // 0 = domingo, 6 = sábado
@@ -775,15 +778,39 @@ export default function FolgasCreatePage() {
           specName,
           specMembers,
         ] of membersBySpecialization.entries()) {
-          // Filtrar membros que podem participar da escala atual
-          const availableMembers = specMembers.filter((member) => {
+          // Separar membros que podem participar da escala atual e os que são automaticamente folga
+          const availableMembers: any[] = [];
+          const automaticLeaveMembers: any[] = [];
+          
+          specMembers.forEach((member) => {
             if (isEscalaPreta && member.tipoParticipacao === "vermelha") {
-              return false; // Membro só participa da escala vermelha, não pode trabalhar em dia de semana
+              automaticLeaveMembers.push(member); // Membro só participa da escala vermelha, fica automaticamente de folga em dia de semana
+            } else if (isEscalaVermelha && member.tipoParticipacao === "preta") {
+              automaticLeaveMembers.push(member); // Membro só participa da escala preta, fica automaticamente de folga no fim de semana
+            } else {
+              availableMembers.push(member); // Membro pode participar desta escala
             }
-            if (isEscalaVermelha && member.tipoParticipacao === "preta") {
-              return false; // Membro só participa da escala preta, não pode trabalhar no fim de semana
+          });
+
+          // Adicionar membros de folga automática baseados no tipo de participação
+          dayOnLeave.push(...automaticLeaveMembers);
+          
+          // Atualizar folgas dos membros de folga automática
+          automaticLeaveMembers.forEach((member) => {
+            const originalMember = membersBySpecialization
+              .get(specName)!
+              .find((m) => m.id === member.id);
+            if (originalMember) {
+              // Incrementar contador geral (compatibilidade)
+              originalMember.folgasAtuais += folgasIncrement;
+
+              // Incrementar contador específico da escala (preta ou vermelha)
+              if (isEscalaPreta) {
+                originalMember.folgasAtualPreta += folgasIncrement;
+              } else {
+                originalMember.folgasAtualVermelha += folgasIncrement;
+              }
             }
-            return true; // Membro pode participar desta escala
           });
 
           // Verificar se há membros suficientes para esta escala
@@ -838,7 +865,6 @@ export default function FolgasCreatePage() {
 
           // Atualizar folgas dos que ficaram de folga nesta especialização
           // Em feriados, aplicar multiplicador de folgas (vale mais)
-          const folgasIncrement = isHoliday || isSpecialPeriod ? 1.5 : 1;
 
           specOnLeave.forEach((member) => {
             const originalMember = membersBySpecialization
@@ -863,7 +889,6 @@ export default function FolgasCreatePage() {
 
         // Atualizar folgas dos membros que apenas contabilizam
         // Em feriados, aplicar o mesmo multiplicador
-        const folgasIncrement = isHoliday || isSpecialPeriod ? 1.5 : 1;
         membersOnlyForLeaveCountCopy.forEach((member) => {
           // Verificar se o membro participa desta escala
           const shouldCountForThisScale =
