@@ -1,25 +1,25 @@
-import '@testing-library/jest-dom'
+import "@testing-library/jest-dom";
 
 // Mock Next.js router
-jest.mock('next/navigation', () => ({
+jest.mock("next/navigation", () => ({
   useRouter() {
     return {
       push: jest.fn(),
       replace: jest.fn(),
       back: jest.fn(),
       refresh: jest.fn(),
-    }
+    };
   },
   useSearchParams() {
-    return new URLSearchParams()
+    return new URLSearchParams();
   },
   usePathname() {
-    return ''
+    return "";
   },
-}))
+}));
 
 // Mock Supabase
-jest.mock('@/lib/supabaseClient', () => ({
+jest.mock("@/lib/supabaseClient", () => ({
   supabase: {
     from: jest.fn(() => ({
       select: jest.fn(() => ({
@@ -54,69 +54,71 @@ jest.mock('@/lib/supabaseClient', () => ({
       })),
     })),
     auth: {
-      getUser: jest.fn(() => Promise.resolve({ 
-        data: { user: null }, 
-        error: null 
-      })),
+      getUser: jest.fn(() =>
+        Promise.resolve({
+          data: { user: null },
+          error: null,
+        })
+      ),
     },
   },
-}))
+}));
 
 // Mock Sonner toasts
-jest.mock('sonner', () => ({
+jest.mock("sonner", () => ({
   toast: {
     success: jest.fn(),
     error: jest.fn(),
     warning: jest.fn(),
     info: jest.fn(),
   },
-}))
+}));
 
 // Mock jsPDF
-jest.mock('jspdf', () => {
+jest.mock("jspdf", () => {
   return jest.fn().mockImplementation(() => ({
     addPage: jest.fn(),
     setFontSize: jest.fn(),
     text: jest.fn(),
     save: jest.fn(),
     output: jest.fn(),
-  }))
-})
+  }));
+});
 
 // Mock window.print
-Object.defineProperty(window, 'print', {
+Object.defineProperty(window, "print", {
   value: jest.fn(),
   writable: true,
-})
+});
 
 // Mock ResizeObserver
 global.ResizeObserver = jest.fn().mockImplementation(() => ({
   observe: jest.fn(),
   unobserve: jest.fn(),
   disconnect: jest.fn(),
-}))
+}));
 
 // Mock IntersectionObserver
 global.IntersectionObserver = jest.fn().mockImplementation(() => ({
   observe: jest.fn(),
   unobserve: jest.fn(),
   disconnect: jest.fn(),
-}))
+}));
 
 // Suppress console errors in tests
-const originalError = console.error
+const originalError = console.error;
 beforeAll(() => {
   console.error = (...args) => {
     if (
-      typeof args[0] === 'string' &&
-      args[0].includes('Warning: ReactDOM.render is deprecated')
+      typeof args[0] === "string" &&
+      args[0].includes("Warning: ReactDOM.render is deprecated")
     ) {
-      return
+      return;
     }
-    originalError.call(console, ...args)
-  }
-})
+    originalError.call(console, ...args);
+  };
+});
 
 afterAll(() => {
-  console.error = originalError
-})
+  console.error = originalError;
+});

@@ -1361,10 +1361,22 @@ export default function FolgasCreatePage() {
                           Regras de Feriados na Escala Preta e Vermelha:
                         </p>
                         <ul className="text-xs space-y-1">
-                          <li>• Feriados nacionais aparecem destacados em vermelho 🎄</li>
-                          <li>• Em feriados, mais pessoas ficam de folga (escala reduzida)</li>
-                          <li>• Folgas em feriados valem 1.5x (vale mais no contador)</li>
-                          <li>• Períodos especiais (Natal/Ano Novo) têm regras diferenciadas ⭐</li>
+                          <li>
+                            • Feriados nacionais aparecem destacados em vermelho
+                            🎄
+                          </li>
+                          <li>
+                            • Em feriados, mais pessoas ficam de folga (escala
+                            reduzida)
+                          </li>
+                          <li>
+                            • Folgas em feriados valem 1.5x (vale mais no
+                            contador)
+                          </li>
+                          <li>
+                            • Períodos especiais (Natal/Ano Novo) têm regras
+                            diferenciadas ⭐
+                          </li>
                         </ul>
                       </div>
                     </TooltipContent>
@@ -1594,7 +1606,10 @@ export default function FolgasCreatePage() {
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>
-                            <p>Importar integrantes e folgas de uma escala já criada</p>
+                            <p>
+                              Importar integrantes e folgas de uma escala já
+                              criada
+                            </p>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
@@ -1875,7 +1890,10 @@ export default function FolgasCreatePage() {
                               </span>
                             </TooltipTrigger>
                             <TooltipContent>
-                              <p>Selecione os dias da semana em que a escala deve ser gerada</p>
+                              <p>
+                                Selecione os dias da semana em que a escala deve
+                                ser gerada
+                              </p>
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
@@ -2099,7 +2117,10 @@ export default function FolgasCreatePage() {
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>Gera automaticamente a escala de folgas baseada nas configurações e folgas dos integrantes</p>
+                        <p>
+                          Gera automaticamente a escala de folgas baseada nas
+                          configurações e folgas dos integrantes
+                        </p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
@@ -2150,7 +2171,10 @@ export default function FolgasCreatePage() {
                               </Button>
                             </TooltipTrigger>
                             <TooltipContent>
-                              <p>Imprime a escala gerada com formatação profissional</p>
+                              <p>
+                                Imprime a escala gerada com formatação
+                                profissional
+                              </p>
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
@@ -2178,7 +2202,10 @@ export default function FolgasCreatePage() {
                               </Button>
                             </TooltipTrigger>
                             <TooltipContent>
-                              <p>Salva a escala no banco de dados para consulta posterior</p>
+                              <p>
+                                Salva a escala no banco de dados para consulta
+                                posterior
+                              </p>
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
@@ -2457,12 +2484,24 @@ export default function FolgasCreatePage() {
                     </TooltipTrigger>
                     <TooltipContent className="max-w-sm">
                       <div className="space-y-2">
-                        <p className="font-semibold">Como funciona a importação:</p>
+                        <p className="font-semibold">
+                          Como funciona a importação:
+                        </p>
                         <ul className="text-xs space-y-1">
-                          <li>• Os integrantes da escala selecionada serão adicionados automaticamente</li>
-                          <li>• As folgas atuais serão usadas como folgas iniciais na nova escala</li>
-                          <li>• Especialização e configurações são preservadas</li>
-                          <li>• Integrantes já adicionados não serão duplicados</li>
+                          <li>
+                            • Os integrantes da escala selecionada serão
+                            adicionados automaticamente
+                          </li>
+                          <li>
+                            • As folgas atuais serão usadas como folgas iniciais
+                            na nova escala
+                          </li>
+                          <li>
+                            • Especialização e configurações são preservadas
+                          </li>
+                          <li>
+                            • Integrantes já adicionados não serão duplicados
+                          </li>
                         </ul>
                       </div>
                     </TooltipContent>
