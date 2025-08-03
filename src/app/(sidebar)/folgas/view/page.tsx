@@ -67,6 +67,9 @@ export default function FolgasViewPage() {
   const [signatureName, setSignatureName] = useState("");
   const [signatureTitle, setSignatureTitle] = useState("");
   const [includeSignature, setIncludeSignature] = useState(false);
+  const [printStartDate, setPrintStartDate] = useState("");
+  const [printEndDate, setPrintEndDate] = useState("");
+  const [printFullPeriod, setPrintFullPeriod] = useState(true);
 
   const fetchScale = async () => {
     if (!scaleId) {
@@ -364,16 +367,31 @@ export default function FolgasViewPage() {
   };
 
   const handlePrintClick = () => {
+    // Inicializar as datas com o período completo disponível
+    const calendarData = getCalendarData();
+    if (calendarData && calendarData.dates.length > 0) {
+      setPrintStartDate(calendarData.dates[0]);
+      setPrintEndDate(calendarData.dates[calendarData.dates.length - 1]);
+    }
     setShowPrintDialog(true);
   };
 
   const handlePrintConfirm = () => {
     setShowPrintDialog(false);
-    printScale(includeSignature, signatureName, signatureTitle);
+    printScale(
+      includeSignature, 
+      signatureName, 
+      signatureTitle,
+      printFullPeriod ? null : printStartDate,
+      printFullPeriod ? null : printEndDate
+    );
     // Reset dialog state after printing
     setIncludeSignature(false);
     setSignatureName("");
     setSignatureTitle("");
+    setPrintStartDate("");
+    setPrintEndDate("");
+    setPrintFullPeriod(true);
   };
 
   const handleDialogClose = () => {
@@ -382,12 +400,17 @@ export default function FolgasViewPage() {
     setIncludeSignature(false);
     setSignatureName("");
     setSignatureTitle("");
+    setPrintStartDate("");
+    setPrintEndDate("");
+    setPrintFullPeriod(true);
   };
 
   const printScale = (
     withSignature: boolean = false,
     signerName: string = "",
-    signerTitle: string = ""
+    signerTitle: string = "",
+    startDate: string | null = null,
+    endDate: string | null = null
   ) => {
     if (!scale) {
       console.error("Escala não disponível para impressão");
@@ -406,6 +429,14 @@ export default function FolgasViewPage() {
 
     let tableContent = "";
     let headerRow = "";
+
+    // Filtrar datas se o período específico foi selecionado
+    let filteredDates = calendarData.dates;
+    if (startDate && endDate) {
+      filteredDates = calendarData.dates.filter(date => {
+        return date >= startDate && date <= endDate;
+      });
+    }
 
     // Obter especializações dinâmicas dos dados
     const dynamicSpecializations = Array.from(
@@ -438,7 +469,7 @@ export default function FolgasViewPage() {
     headerRow += "</tr>";
 
     // Criar linhas da tabela organizadas por data
-    const dates = calendarData.dates;
+    const dates = filteredDates;
     dates.forEach((date) => {
       const dateObj = new Date(date);
       const formattedDate = format(dateObj, "dd/MM", { locale: ptBR });
@@ -680,13 +711,13 @@ export default function FolgasViewPage() {
           }</div>
           <div class="scale-title">ESCALA DE SERVIÇO DO SETOR DE ${scale.departamento?.nome?.toUpperCase()} REFERENTE AO PERÍODO DE</div>
           <div class="period">${
-            calendarData.dates.length > 0
-              ? format(new Date(calendarData.dates[0]), "dd", {
+            filteredDates.length > 0
+              ? format(new Date(filteredDates[0]), "dd", {
                   locale: ptBR,
                 }) +
                 " A " +
                 format(
-                  new Date(calendarData.dates[calendarData.dates.length - 1]),
+                  new Date(filteredDates[filteredDates.length - 1]),
                   "dd 'de' MMMM 'de' yyyy",
                   { locale: ptBR }
                 ).toUpperCase()
@@ -934,6 +965,59 @@ export default function FolgasViewPage() {
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="printFullPeriod"
+                    checked={printFullPeriod}
+                    onCheckedChange={(checked) =>
+                      setPrintFullPeriod(checked === true)
+                    }
+                  />
+                  <Label htmlFor="printFullPeriod">
+                    Imprimir período completo
+                  </Label>
+                </div>
+                
+                {!printFullPeriod && (
+                  <div className="space-y-3 pl-6 border-l-2 border-gray-200">
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="startDate" className="text-right">
+                        Data inicial:
+                      </Label>
+                      <Input
+                        id="startDate"
+                        type="date"
+                        value={printStartDate}
+                        onChange={(e) => setPrintStartDate(e.target.value)}
+                        min={calendarData?.dates[0]}
+                        max={calendarData?.dates[calendarData.dates.length - 1]}
+                        className="col-span-3"
+                      />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="endDate" className="text-right">
+                        Data final:
+                      </Label>
+                      <Input
+                        id="endDate"
+                        type="date"
+                        value={printEndDate}
+                        onChange={(e) => setPrintEndDate(e.target.value)}
+                        min={printStartDate || (calendarData?.dates[0])}
+                        max={calendarData?.dates[calendarData.dates.length - 1]}
+                        className="col-span-3"
+                      />
+                    </div>
+                    {!printFullPeriod && printStartDate && printEndDate && printStartDate > printEndDate && (
+                      <p className="text-sm text-red-600 pl-4">
+                        A data inicial deve ser anterior à data final
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <div className="flex items-center space-x-2">
                 <Checkbox
                   id="includeSignature"
@@ -983,7 +1067,14 @@ export default function FolgasViewPage() {
               >
                 Cancelar
               </Button>
-              <Button type="submit" onClick={handlePrintConfirm}>
+              <Button 
+                type="submit" 
+                onClick={handlePrintConfirm}
+                disabled={
+                  !printFullPeriod && 
+                  (!printStartDate || !printEndDate || printStartDate > printEndDate)
+                }
+              >
                 Imprimir
               </Button>
             </DialogFooter>
