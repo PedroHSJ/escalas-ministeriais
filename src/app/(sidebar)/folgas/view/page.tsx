@@ -197,18 +197,25 @@ export default function FolgasViewPage() {
     if (assignments.length === 0 || participations.length === 0) return null;
 
     // Obter todas as datas únicas - garantir formato consistente
-    const dates = Array.from(new Set(assignments.map((a) => {
-      // Se a data já é uma string no formato YYYY-MM-DD, usar diretamente
-      if (typeof a.data === 'string' && a.data.match(/^\d{4}-\d{2}-\d{2}$/)) {
-        return a.data;
-      }
-      // Caso contrário, converter para o formato correto
-      const dateObj = new Date(a.data);
-      const year = dateObj.getFullYear();
-      const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-      const dayNum = String(dateObj.getDate()).padStart(2, '0');
-      return `${year}-${month}-${dayNum}`;
-    }))).sort();
+    const dates = Array.from(
+      new Set(
+        assignments.map((a) => {
+          // Se a data já é uma string no formato YYYY-MM-DD, usar diretamente
+          if (
+            typeof a.data === "string" &&
+            a.data.match(/^\d{4}-\d{2}-\d{2}$/)
+          ) {
+            return a.data;
+          }
+          // Caso contrário, converter para o formato correto
+          const dateObj = new Date(a.data);
+          const year = dateObj.getFullYear();
+          const month = String(dateObj.getMonth() + 1).padStart(2, "0");
+          const dayNum = String(dateObj.getDate()).padStart(2, "0");
+          return `${year}-${month}-${dayNum}`;
+        })
+      )
+    ).sort();
 
     // Obter todas as especializações únicas
     const specializations = Array.from(
@@ -239,39 +246,31 @@ export default function FolgasViewPage() {
         const memberName = p.integrante.nome;
         calendarMatrix[memberName] = {};
 
-        // Primeiro, identificar os dias de trabalho para este membro
-        const memberWorkDays = new Set();
-        assignments.forEach((assignment) => {
-          if (
-            assignment.integrante?.nome === memberName &&
-            assignment.tipo_atribuicao === "trabalho"
-          ) {
-            memberWorkDays.add(assignment.data);
-          }
-        });
-
         // Calcular códigos para cada data
         let consecutiveDaysOff = 0;
-        dates.forEach((date, index) => {
-          const isWorkDay = memberWorkDays.has(date);
+        dates.forEach((date) => {
+          // Buscar atribuição de trabalho para este membro nesta data
+          const workAssignment = assignments.find(
+            (a) =>
+              a.integrante?.nome === memberName &&
+              a.data === date &&
+              a.tipo_atribuicao === "trabalho"
+          );
 
-          if (isWorkDay) {
+          // Buscar atribuição de folga para este membro nesta data
+          const leaveAssignment = assignments.find(
+            (a) =>
+              a.integrante?.nome === memberName &&
+              a.data === date &&
+              a.tipo_atribuicao === "folga"
+          );
+
+          if (workAssignment) {
             // Dia de trabalho = código 0
             consecutiveDaysOff = 0;
 
-            // Encontrar a especialização para este dia
-            const workAssignment = assignments.find(
-              (a) =>
-                a.integrante?.nome === memberName &&
-                a.data === date &&
-                a.tipo_atribuicao === "trabalho"
-            );
-
             const especializacaoNome =
-              workAssignment?.especializacao?.nome ||
-              workAssignment?.observacao;
-            const especIndex =
-              specializations.indexOf(especializacaoNome || "") + 1;
+              workAssignment.especializacao?.nome || workAssignment.observacao;
 
             calendarMatrix[memberName][date] = {
               codigo: 0,
@@ -279,7 +278,7 @@ export default function FolgasViewPage() {
               tipo: "trabalho",
               color: "#bbf7d0", // verde claro para trabalho
             };
-          } else {
+          } else if (leaveAssignment) {
             // Dia de folga = incrementar contador
             consecutiveDaysOff++;
 
@@ -289,6 +288,7 @@ export default function FolgasViewPage() {
               color: "#fecaca", // vermelho claro para folga
             };
           }
+          // Se não há nem trabalho nem folga, não adiciona entrada para este dia
         });
       }
     });
