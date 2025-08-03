@@ -3,6 +3,7 @@ import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Card,
   CardContent,
@@ -26,7 +27,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Plus, Eye, Trash2, Building2, Calendar, Users } from "lucide-react";
+import { Plus, Eye, Trash2, Building2, Calendar, Users, Edit } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -54,6 +55,13 @@ interface DeleteDialog {
   isDeleting: boolean;
 }
 
+interface EditDialog {
+  isOpen: boolean;
+  scale: EscalaFolgaType | null;
+  isEditing: boolean;
+  newName: string;
+}
+
 export default function FolgasListPage() {
   const [userId, setUserId] = useState("");
   const [scales, setScales] = useState<EscalaFolgaType[]>([]);
@@ -77,6 +85,13 @@ export default function FolgasListPage() {
     isOpen: false,
     scale: null,
     isDeleting: false,
+  });
+
+  const [editDialog, setEditDialog] = useState<EditDialog>({
+    isOpen: false,
+    scale: null,
+    isEditing: false,
+    newName: "",
   });
 
   const fetchSession = async () => {
@@ -301,6 +316,54 @@ export default function FolgasListPage() {
     });
   };
 
+  const openEditDialog = (scale: EscalaFolgaType) => {
+    setEditDialog({
+      isOpen: true,
+      scale,
+      isEditing: false,
+      newName: scale.nome,
+    });
+  };
+
+  const closeEditDialog = () => {
+    setEditDialog({
+      isOpen: false,
+      scale: null,
+      isEditing: false,
+      newName: "",
+    });
+  };
+
+  const confirmEditScale = async () => {
+    if (!editDialog.scale || !editDialog.newName.trim()) return;
+
+    setEditDialog((prev) => ({ ...prev, isEditing: true }));
+
+    try {
+      const { error } = await supabase
+        .from("escalas_folgas")
+        .update({ nome: editDialog.newName.trim() })
+        .eq("id", editDialog.scale.id);
+
+      if (error) throw error;
+
+      toast.success("Nome da escala atualizado com sucesso");
+
+      // Atualizar lista
+      if (selectedOrganization) {
+        await fetchScalesByOrganization(selectedOrganization);
+      } else {
+        await fetchAllScales();
+      }
+
+      closeEditDialog();
+    } catch (error) {
+      console.error("Erro ao atualizar nome da escala:", error);
+      toast.error("Erro ao atualizar nome da escala");
+      setEditDialog((prev) => ({ ...prev, isEditing: false }));
+    }
+  };
+
   const confirmDeleteScale = async () => {
     if (!deleteDialog.scale) return;
 
@@ -484,10 +547,17 @@ export default function FolgasListPage() {
                               <Button
                                 variant="outline"
                                 size="sm"
+                                onClick={() => openEditDialog(scale)}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              {/* <Button
+                                variant="outline"
+                                size="sm"
                                 onClick={() => openDeleteDialog(scale)}
                               >
                                 <Trash2 className="h-4 w-4" />
-                              </Button>
+                              </Button> */}
                             </div>
                           </div>
                         </div>
@@ -556,6 +626,13 @@ export default function FolgasListPage() {
                               >
                                 <Eye className="h-4 w-4" />
                               </NavigationButton>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => openEditDialog(scale)}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
                               {/* <Button
                                 variant="outline"
                                 size="sm"
@@ -586,6 +663,48 @@ export default function FolgasListPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Dialog de Edição de Nome */}
+        <Dialog open={editDialog.isOpen} onOpenChange={closeEditDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Editar Nome da Escala</DialogTitle>
+              <DialogDescription>
+                Altere o nome da escala "{editDialog.scale?.nome}".
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              <Input
+                placeholder="Nome da escala"
+                value={editDialog.newName}
+                onChange={(e) =>
+                  setEditDialog((prev) => ({ ...prev, newName: e.target.value }))
+                }
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && editDialog.newName.trim()) {
+                    confirmEditScale();
+                  }
+                }}
+                disabled={editDialog.isEditing}
+              />
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={closeEditDialog}
+                disabled={editDialog.isEditing}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={confirmEditScale}
+                disabled={editDialog.isEditing || !editDialog.newName.trim()}
+              >
+                {editDialog.isEditing ? "Salvando..." : "Salvar"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Dialog de Confirmação de Exclusão */}
         <Dialog open={deleteDialog.isOpen} onOpenChange={closeDeleteDialog}>
