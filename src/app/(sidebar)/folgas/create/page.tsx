@@ -156,9 +156,15 @@ export default function FolgasCreatePage() {
   const getCalendarDataFromGenerated = () => {
     if (generatedSchedule.length === 0) return null;
 
-    // Obter todas as datas únicas
+    // Obter todas as datas únicas - usar formato consistente
     const dates = generatedSchedule
-      .map((day) => day.date.toISOString().split("T")[0])
+      .map((day) => {
+        // Garante que a data seja formatada consistentemente
+        const year = day.date.getFullYear();
+        const month = String(day.date.getMonth() + 1).padStart(2, '0');
+        const dayNum = String(day.date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${dayNum}`;
+      })
       .sort();
 
     // Obter todas as especializações únicas
@@ -191,9 +197,14 @@ export default function FolgasCreatePage() {
       // Calcular códigos para cada data
       let consecutiveDaysOff = 0;
       dates.forEach((dateStr) => {
-        const day = generatedSchedule.find(
-          (d) => d.date.toISOString().split("T")[0] === dateStr
-        );
+        const day = generatedSchedule.find((d) => {
+          // Usar formato consistente para comparação
+          const year = d.date.getFullYear();
+          const month = String(d.date.getMonth() + 1).padStart(2, '0');
+          const dayNum = String(d.date.getDate()).padStart(2, '0');
+          const generatedDateStr = `${year}-${month}-${dayNum}`;
+          return generatedDateStr === dateStr;
+        });
 
         if (!day) return;
 

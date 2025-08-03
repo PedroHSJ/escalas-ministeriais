@@ -151,7 +151,17 @@ export default function CalendarTable({
               </th>
               {calendarData.dates.map((date, index) => {
                 // Escala Preta e Vermelha: PRETA = dias de semana, VERMELHA = finais de semana
-                const dateObj = new Date(date);
+                // Função auxiliar para criar data segura
+                const createSafeDate = (dateStr: string) => {
+                  // Se já tem horário ou não é formato YYYY-MM-DD, usar diretamente
+                  if (dateStr.includes('T') || !dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                    return new Date(dateStr);
+                  }
+                  // Caso contrário, adicionar horário para evitar problemas de fuso
+                  return new Date(dateStr + 'T12:00:00');
+                };
+
+                const dateObj = createSafeDate(date);
                 const dayOfWeek = dateObj.getDay(); // 0 = domingo, 6 = sábado
                 const isWeekend = dayOfWeek === 0 || dayOfWeek === 6; // Domingo ou Sábado
                 const bgColor = isWeekend ? "bg-red-600" : "bg-black"; // Vermelho para finais de semana, Preto para dias úteis
@@ -163,10 +173,10 @@ export default function CalendarTable({
                     className={`border border-gray-300 p-1 ${bgColor} ${textColor} text-xs min-w-[30px] max-w-[35px]`}
                   >
                     <div className="font-bold text-xs">
-                      {format(new Date(date), "dd")}
+                      {format(createSafeDate(date), "dd")}
                     </div>
                     <div className="text-[9px] leading-tight">
-                      {format(new Date(date), "EEE", {
+                      {format(createSafeDate(date), "EEE", {
                         locale: ptBR,
                       })
                         .toUpperCase()

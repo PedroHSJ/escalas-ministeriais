@@ -196,8 +196,19 @@ export default function FolgasViewPage() {
   const getCalendarData = () => {
     if (assignments.length === 0 || participations.length === 0) return null;
 
-    // Obter todas as datas únicas
-    const dates = Array.from(new Set(assignments.map((a) => a.data))).sort();
+    // Obter todas as datas únicas - garantir formato consistente
+    const dates = Array.from(new Set(assignments.map((a) => {
+      // Se a data já é uma string no formato YYYY-MM-DD, usar diretamente
+      if (typeof a.data === 'string' && a.data.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        return a.data;
+      }
+      // Caso contrário, converter para o formato correto
+      const dateObj = new Date(a.data);
+      const year = dateObj.getFullYear();
+      const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const dayNum = String(dateObj.getDate()).padStart(2, '0');
+      return `${year}-${month}-${dayNum}`;
+    }))).sort();
 
     // Obter todas as especializações únicas
     const specializations = Array.from(
