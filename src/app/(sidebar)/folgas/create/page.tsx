@@ -421,6 +421,7 @@ export default function FolgasCreatePage() {
       `
       )
       .eq("departamento_id", departmentId)
+      .is("deleted_at", null) // Filtrar apenas escalas não excluídas
       .order("created_at", { ascending: false });
 
     if (!error && data) {

@@ -3,6 +3,7 @@ export interface EscalaFolgaType {
   departamento_id: string;
   nome: string;
   created_at: string;
+  deleted_at?: string | null; // Campo para soft delete
   departamento?: {
     nome: string;
     tipo_departamento: string;

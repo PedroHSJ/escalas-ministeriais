@@ -27,7 +27,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Plus, Eye, Trash2, Building2, Calendar, Users, Edit } from "lucide-react";
+import {
+  Plus,
+  Eye,
+  Trash2,
+  Building2,
+  Calendar,
+  Users,
+  Edit,
+  Undo2,
+  Archive,
+} from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -94,6 +104,11 @@ export default function FolgasListPage() {
     newName: "",
   });
 
+  // Estados para gerenciar lixeira
+  const [showTrash, setShowTrash] = useState(false);
+  const [deletedScales, setDeletedScales] = useState<EscalaFolgaType[]>([]);
+  const [loadingTrash, setLoadingTrash] = useState(false);
+
   const fetchSession = async () => {
     if (process.env.NODE_ENV === "development") {
       setUserId("d58c420f-7db1-42e9-b040-e1d038ef79af");
@@ -158,6 +173,7 @@ export default function FolgasListPage() {
       `
       )
       .eq("departamentos.organizacoes.user_id", userId)
+      .is("deleted_at", null) // Filtrar apenas escalas não excluídas
       .order("created_at", { ascending: false });
 
     if (!error && data) {
@@ -209,6 +225,7 @@ export default function FolgasListPage() {
       `
       )
       .eq("departamentos.organizacao_id", organizationId)
+      .is("deleted_at", null) // Filtrar apenas escalas não excluídas
       .order("created_at", { ascending: false });
 
     if (!error && data) {
@@ -364,33 +381,143 @@ export default function FolgasListPage() {
     }
   };
 
-  const confirmDeleteScale = async () => {
-    if (!deleteDialog.scale) return;
+  const fetchDeletedScales = async () => {
+    setLoadingTrash(true);
 
-    setDeleteDialog((prev) => ({ ...prev, isDeleting: true }));
+    const { data, error } = await supabase
+      .from("escalas_folgas")
+      .select(
+        `
+        *,
+        departamentos (
+          nome,
+          tipo_departamento,
+          organizacoes (
+            nome,
+            tipo,
+            user_id
+          )
+        ),
+        escala_folgas_participacoes (
+          id,
+          integrante_id,
+          ativo
+        )
+      `
+      )
+      .eq("departamentos.organizacoes.user_id", userId)
+      .not("deleted_at", "is", null) // Filtrar apenas escalas excluídas
+      .order("deleted_at", { ascending: false });
+
+    if (!error && data) {
+      const scalesWithDetails = data.map((scale) => ({
+        ...scale,
+        departamento: {
+          nome: scale.departamentos?.nome,
+          tipo_departamento: scale.departamentos?.tipo_departamento,
+          organizacao: {
+            nome: scale.departamentos?.organizacoes?.nome,
+            tipo: scale.departamentos?.organizacoes?.tipo,
+          },
+        },
+        _count: {
+          participacoes:
+            scale.escala_folgas_participacoes?.filter((p: any) => p.ativo)
+              .length || 0,
+        },
+      }));
+      setDeletedScales(scalesWithDetails);
+    }
+
+    setLoadingTrash(false);
+  };
+
+  const restoreScale = async (scaleId: string, scaleName: string) => {
+    try {
+      const { error } = await supabase
+        .from("escalas_folgas")
+        .update({ deleted_at: null })
+        .eq("id", scaleId);
+
+      if (error) throw error;
+
+      toast.success("Escala restaurada com sucesso", {
+        description: `${scaleName} foi restaurada e já está disponível novamente.`,
+      });
+
+      // Atualizar ambas as listas
+      await fetchDeletedScales();
+      if (selectedOrganization) {
+        await fetchScalesByOrganization(selectedOrganization);
+      } else {
+        await fetchAllScales();
+      }
+    } catch (error) {
+      console.error("Erro ao restaurar escala:", error);
+      toast.error("Erro ao restaurar escala");
+    }
+  };
+
+  const permanentDeleteScale = async (scaleId: string, scaleName: string) => {
+    if (
+      !confirm(
+        `Tem certeza que deseja excluir PERMANENTEMENTE a escala "${scaleName}"? Esta ação não pode ser desfeita.`
+      )
+    ) {
+      return;
+    }
 
     try {
       // Primeiro deletar as atribuições
       await supabase
         .from("escala_folgas_atribuicoes")
         .delete()
-        .eq("escala_folga_id", deleteDialog.scale.id);
+        .eq("escala_folga_id", scaleId);
 
       // Depois deletar as participações
       await supabase
         .from("escala_folgas_participacoes")
         .delete()
-        .eq("escala_folga_id", deleteDialog.scale.id);
+        .eq("escala_folga_id", scaleId);
 
-      // Por último deletar a escala
+      // Por último deletar a escala permanentemente
       const { error } = await supabase
         .from("escalas_folgas")
         .delete()
+        .eq("id", scaleId);
+
+      if (error) throw error;
+
+      toast.success("Escala excluída permanentemente", {
+        description: `${scaleName} foi excluída permanentemente do sistema.`,
+      });
+
+      // Atualizar lista de excluídas
+      await fetchDeletedScales();
+    } catch (error) {
+      console.error("Erro ao excluir permanentemente:", error);
+      toast.error("Erro ao excluir permanentemente");
+    }
+  };
+
+  const confirmDeleteScale = async () => {
+    if (!deleteDialog.scale) return;
+
+    setDeleteDialog((prev) => ({ ...prev, isDeleting: true }));
+
+    try {
+      // Soft delete: apenas marcar como excluído
+      const { error } = await supabase
+        .from("escalas_folgas")
+        .update({ deleted_at: new Date().toISOString() })
         .eq("id", deleteDialog.scale.id);
 
       if (error) throw error;
 
-      toast.success("Escala preta e vermelha excluída com sucesso");
+      toast.success("Escala preta e vermelha excluída com sucesso", {
+        description:
+          "A escala foi movida para a lixeira e pode ser recuperada se necessário.",
+      });
 
       // Atualizar lista
       if (selectedOrganization) {
@@ -436,12 +563,27 @@ export default function FolgasListPage() {
               Gerencie suas escalas de folgas no sistema preta e vermelha
             </p>
           </div>
-          <Link href="/folgas/create">
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Criar
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowTrash(!showTrash);
+                if (!showTrash) {
+                  fetchDeletedScales();
+                }
+              }}
+              className="text-red-600 border-red-200 hover:bg-red-50"
+            >
+              <Archive className="mr-2 h-4 w-4" />
+              {showTrash ? "Ver Ativas" : "Lixeira"}
             </Button>
-          </Link>
+            <Link href="/folgas/create">
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Criar
+              </Button>
+            </Link>
+          </div>
         </div>
 
         {/* Filtros */}
@@ -464,11 +606,22 @@ export default function FolgasListPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Escalas Preta e Vermelha ({totalItems})
+              {showTrash ? (
+                <>
+                  <Archive className="h-5 w-5" />
+                  Escalas Excluídas ({deletedScales.length})
+                </>
+              ) : (
+                <>
+                  <Calendar className="h-5 w-5" />
+                  Escalas Preta e Vermelha ({totalItems})
+                </>
+              )}
             </CardTitle>
             <CardDescription>
-              {totalPages > 1
+              {showTrash
+                ? "Escalas que foram excluídas e podem ser restauradas ou removidas permanentemente"
+                : totalPages > 1
                 ? `Mostrando ${startIndex + 1}-${Math.min(
                     endIndex,
                     totalItems
@@ -477,7 +630,94 @@ export default function FolgasListPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {totalItems === 0 ? (
+            {showTrash ? (
+              // Visualização da Lixeira
+              loadingTrash ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <div className="animate-spin mx-auto h-8 w-8 border-2 border-blue-600 border-t-transparent rounded-full mb-4"></div>
+                  <p>Carregando escalas excluídas...</p>
+                </div>
+              ) : deletedScales.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Archive className="h-16 w-16 mx-auto mb-4 opacity-50" />
+                  <p className="text-lg font-medium">Lixeira vazia</p>
+                  <p className="text-sm">Nenhuma escala foi excluída ainda.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {deletedScales.map((scale) => (
+                    <Card key={scale.id} className="border-red-200 bg-red-50">
+                      <CardContent className="p-4">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <h3 className="font-semibold text-lg text-red-900">
+                              {scale.nome}
+                            </h3>
+                            <div className="space-y-1 text-sm text-red-700 mt-2">
+                              <div className="flex items-center gap-2">
+                                <Building2 className="h-4 w-4" />
+                                <span>
+                                  {scale.departamento?.organizacao?.nome}
+                                </span>
+                                <span className="capitalize">
+                                  ({scale.departamento?.organizacao?.tipo})
+                                </span>
+                              </div>
+                              <div>
+                                <strong>Departamento:</strong>{" "}
+                                {scale.departamento?.nome} (
+                                {scale.departamento?.tipo_departamento})
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Users className="h-4 w-4" />
+                                <span>
+                                  {scale._count?.participacoes || 0}{" "}
+                                  participantes ativos
+                                </span>
+                              </div>
+                              <p className="text-xs">
+                                Excluída em{" "}
+                                {scale.deleted_at &&
+                                  format(
+                                    new Date(scale.deleted_at),
+                                    "dd/MM/yyyy 'às' HH:mm",
+                                    { locale: ptBR }
+                                  )}
+                              </p>
+                            </div>
+                            <div className="flex gap-2 mt-3">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  restoreScale(scale.id, scale.nome)
+                                }
+                                className="text-green-600 border-green-200 hover:bg-green-50"
+                              >
+                                <Undo2 className="h-4 w-4 mr-2" />
+                                Restaurar
+                              </Button>
+                              {/* <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  permanentDeleteScale(scale.id, scale.nome)
+                                }
+                                className="text-red-600 border-red-200 hover:bg-red-100"
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Excluir Permanentemente
+                              </Button> */}
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )
+            ) : // Visualização Normal (Escalas Ativas)
+            totalItems === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <Calendar className="h-16 w-16 mx-auto mb-4 opacity-50" />
                 <p className="text-lg font-medium">
@@ -551,13 +791,14 @@ export default function FolgasListPage() {
                               >
                                 <Edit className="h-4 w-4" />
                               </Button>
-                              {/* <Button
+                              <Button
                                 variant="outline"
                                 size="sm"
                                 onClick={() => openDeleteDialog(scale)}
+                                className="text-red-600 border-red-200 hover:bg-red-50"
                               >
                                 <Trash2 className="h-4 w-4" />
-                              </Button> */}
+                              </Button>
                             </div>
                           </div>
                         </div>
@@ -633,13 +874,14 @@ export default function FolgasListPage() {
                               >
                                 <Edit className="h-4 w-4" />
                               </Button>
-                              {/* <Button
+                              <Button
                                 variant="outline"
                                 size="sm"
                                 onClick={() => openDeleteDialog(scale)}
+                                className="text-red-600 border-red-200 hover:bg-red-50"
                               >
                                 <Trash2 className="h-4 w-4" />
-                              </Button> */}
+                              </Button>
                             </div>
                           </TableCell>
                         </TableRow>
@@ -678,7 +920,10 @@ export default function FolgasListPage() {
                 placeholder="Nome da escala"
                 value={editDialog.newName}
                 onChange={(e) =>
-                  setEditDialog((prev) => ({ ...prev, newName: e.target.value }))
+                  setEditDialog((prev) => ({
+                    ...prev,
+                    newName: e.target.value,
+                  }))
                 }
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && editDialog.newName.trim()) {
