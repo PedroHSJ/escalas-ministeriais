@@ -50,17 +50,25 @@ export interface EscalaFolgaAtribuicaoType {
   };
 }
 
+export type TipoParticipacaoEscala = "ambas" | "preta" | "vermelha";
+
 export interface EscalaFolgaMember {
   id: string;
   nome: string;
   folgasIniciais: number;
   folgasAtuais: number;
+  // Novos campos para contagem separada de escalas preta e vermelha
+  folgasInicaisPreta: number; // Folgas iniciais para dias de semana (escala preta)
+  folgasAtualPreta: number; // Folgas atuais para dias de semana (escala preta)
+  folgasIniciaisVermelha: number; // Folgas iniciais para finais de semana (escala vermelha)
+  folgasAtualVermelha: number; // Folgas atuais para finais de semana (escala vermelha)
   posicaoAtual: number;
   ativo: boolean;
   especializacaoId?: string;
   especializacaoNome?: string;
   apenasContabilizaFolgas?: boolean; // Para integrantes de férias/licença que só contabilizam folgas
   importadoDeEscala?: string; // ID da escala de onde foi importado (opcional)
+  tipoParticipacao: TipoParticipacaoEscala; // Define se participa da escala preta, vermelha ou ambas
 }
 
 export interface EscalaFolgaAssignment {

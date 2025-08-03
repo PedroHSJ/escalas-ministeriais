@@ -124,23 +124,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               },
             ],
           },
-          {
-            title: "Escalas de Plantões",
-            url: "#",
-            isActive: pathname.startsWith("/plantoes"),
-            items: [
-              {
-                title: "Criar",
-                url: "/plantoes/create",
-                isActive: pathname.startsWith("/plantoes/create"),
-              },
-              {
-                title: "Listar",
-                url: "/plantoes/list",
-                isActive: pathname.startsWith("/plantoes/list"),
-              },
-            ],
-          },
           // {
           //   title: "Escala Manual",
           //   url: "#",

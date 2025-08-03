@@ -452,6 +452,11 @@ export default function FolgasCreatePage() {
               nome: participacao.integrante.nome,
               folgasIniciais: participacao.folgas_atuais, // Usar folgas atuais como iniciais para nova escala
               folgasAtuais: participacao.folgas_atuais,
+              // Inicializar contadores separados (distribuir folgas existentes igualmente)
+              folgasInicaisPreta: Math.floor(participacao.folgas_atuais / 2),
+              folgasAtualPreta: Math.floor(participacao.folgas_atuais / 2),
+              folgasIniciaisVermelha: Math.ceil(participacao.folgas_atuais / 2),
+              folgasAtualVermelha: Math.ceil(participacao.folgas_atuais / 2),
               posicaoAtual: importedMembers.length + scaleMembers.length + 1,
               ativo: true,
               especializacaoId: especializacaoPrincipal?.especializacoes?.id,
@@ -460,6 +465,7 @@ export default function FolgasCreatePage() {
               apenasContabilizaFolgas:
                 participacao.apenas_contabiliza_folgas || false,
               importadoDeEscala: selectedScaleToImport, // Marcar que foi importado
+              tipoParticipacao: "ambas", // Por padrão, participa de ambas as escalas
             };
 
             importedMembers.push(newMember);
@@ -542,11 +548,17 @@ export default function FolgasCreatePage() {
       nome: member.nome,
       folgasIniciais: 0,
       folgasAtuais: 0,
+      // Inicializar contadores separados para escala preta e vermelha
+      folgasInicaisPreta: 0,
+      folgasAtualPreta: 0,
+      folgasIniciaisVermelha: 0,
+      folgasAtualVermelha: 0,
       posicaoAtual: scaleMembers.length + 1,
       ativo: true,
       especializacaoId: especializacaoId,
       especializacaoNome: especialização?.nome,
       apenasContabilizaFolgas: apenasContabilizaFolgas,
+      tipoParticipacao: "ambas", // Por padrão, participa de ambas as escalas
     };
 
     setScaleMembers([...scaleMembers, newMember]);
@@ -572,17 +584,74 @@ export default function FolgasCreatePage() {
 
   const updateMemberFolgas = (memberId: string, folgasIniciais: number) => {
     setScaleMembers(
-      scaleMembers.map((m) =>
-        m.id === memberId
-          ? {
-              ...m,
-              folgasIniciais,
-              folgasAtuais: folgasIniciais, // As folgas atuais começam com o valor das folgas iniciais
-            }
-          : m
-      )
+      scaleMembers.map((m) => {
+        if (m.id === memberId) {
+          // Distribuir folgas baseado no tipo de participação
+          let folgasInicaisPreta = 0;
+          let folgasIniciaisVermelha = 0;
+
+          if (m.tipoParticipacao === "ambas") {
+            folgasInicaisPreta = Math.floor(folgasIniciais / 2);
+            folgasIniciaisVermelha = Math.ceil(folgasIniciais / 2);
+          } else if (m.tipoParticipacao === "preta") {
+            folgasInicaisPreta = folgasIniciais;
+            folgasIniciaisVermelha = 0;
+          } else if (m.tipoParticipacao === "vermelha") {
+            folgasInicaisPreta = 0;
+            folgasIniciaisVermelha = folgasIniciais;
+          }
+
+          return {
+            ...m,
+            folgasIniciais,
+            folgasAtuais: folgasIniciais,
+            folgasInicaisPreta,
+            folgasAtualPreta: folgasInicaisPreta,
+            folgasIniciaisVermelha,
+            folgasAtualVermelha: folgasIniciaisVermelha,
+          };
+        }
+        return m;
+      })
     );
     setGeneratedSchedule([]); // Limpar escala quando alterar folgas iniciais
+  };
+
+  const updateMemberTipoParticipacao = (
+    memberId: string,
+    tipoParticipacao: "ambas" | "preta" | "vermelha"
+  ) => {
+    setScaleMembers(
+      scaleMembers.map((m) => {
+        if (m.id === memberId) {
+          // Redistribuir folgas baseado no novo tipo de participação
+          let folgasInicaisPreta = 0;
+          let folgasIniciaisVermelha = 0;
+
+          if (tipoParticipacao === "ambas") {
+            folgasInicaisPreta = Math.floor(m.folgasIniciais / 2);
+            folgasIniciaisVermelha = Math.ceil(m.folgasIniciais / 2);
+          } else if (tipoParticipacao === "preta") {
+            folgasInicaisPreta = m.folgasIniciais;
+            folgasIniciaisVermelha = 0;
+          } else if (tipoParticipacao === "vermelha") {
+            folgasInicaisPreta = 0;
+            folgasIniciaisVermelha = m.folgasIniciais;
+          }
+
+          return {
+            ...m,
+            tipoParticipacao,
+            folgasInicaisPreta,
+            folgasAtualPreta: folgasInicaisPreta,
+            folgasIniciaisVermelha,
+            folgasAtualVermelha: folgasIniciaisVermelha,
+          };
+        }
+        return m;
+      })
+    );
+    setGeneratedSchedule([]); // Limpar escala quando alterar tipo de participação
   };
 
   const toggleWorkingDay = (day: string) => {
@@ -623,10 +692,15 @@ export default function FolgasCreatePage() {
       if (!membersBySpecialization.has(specKey)) {
         membersBySpecialization.set(specKey, []);
       }
-      // Criar uma cópia profunda e garantir que as folgas atuais começam com as folgas iniciais
+      // Criar uma cópia profunda e inicializar contadores separados para escala preta e vermelha
       membersBySpecialization.get(specKey)!.push({
         ...member,
-        folgasAtuais: member.folgasIniciais, // Inicializar folgas atuais com as folgas iniciais
+        folgasAtuais: member.folgasIniciais,
+        // Inicializar contadores separados de escalas preta e vermelha
+        folgasInicaisPreta: member.folgasInicaisPreta || 0,
+        folgasAtualPreta: member.folgasInicaisPreta || 0,
+        folgasIniciaisVermelha: member.folgasIniciaisVermelha || 0,
+        folgasAtualVermelha: member.folgasIniciaisVermelha || 0,
       });
     });
 
@@ -645,6 +719,11 @@ export default function FolgasCreatePage() {
       (member) => ({
         ...member,
         folgasAtuais: member.folgasIniciais,
+        // Inicializar contadores separados para escala preta e vermelha
+        folgasInicaisPreta: member.folgasInicaisPreta || 0,
+        folgasAtualPreta: member.folgasInicaisPreta || 0,
+        folgasIniciaisVermelha: member.folgasIniciaisVermelha || 0,
+        folgasAtualVermelha: member.folgasIniciaisVermelha || 0,
       })
     );
 
@@ -675,12 +754,34 @@ export default function FolgasCreatePage() {
         const isHoliday = feriadoManager.isHoliday(currentDate);
         const isSpecialPeriod = feriadoManager.isSpecialPeriod(currentDate);
 
+        // Determinar se é escala preta (dias de semana) ou vermelha (finais de semana)
+        const dayOfWeekNumber = currentDate.getDay(); // 0 = domingo, 6 = sábado
+        const isEscalaVermelha = dayOfWeekNumber === 0 || dayOfWeekNumber === 6; // Final de semana
+        const isEscalaPreta = !isEscalaVermelha; // Dias de semana
+
         // Para cada especialização, aplicar a lógica de folgas independentemente
         for (const [
           specName,
           specMembers,
         ] of membersBySpecialization.entries()) {
-          const numberOfPeople = specMembers.length;
+          // Filtrar membros que podem participar da escala atual
+          const availableMembers = specMembers.filter((member) => {
+            if (isEscalaPreta && member.tipoParticipacao === "vermelha") {
+              return false; // Membro só participa da escala vermelha, não pode trabalhar em dia de semana
+            }
+            if (isEscalaVermelha && member.tipoParticipacao === "preta") {
+              return false; // Membro só participa da escala preta, não pode trabalhar no fim de semana
+            }
+            return true; // Membro pode participar desta escala
+          });
+
+          // Verificar se há membros suficientes para esta escala
+          if (availableMembers.length === 0) {
+            // Pular esta especialização neste dia se não há membros disponíveis
+            continue;
+          }
+
+          const numberOfPeople = availableMembers.length;
 
           // Aplicar regras especiais de feriado da escala "preta e vermelha"
           let numberOfOnLeave: number;
@@ -697,10 +798,18 @@ export default function FolgasCreatePage() {
             numberOfOnLeave = numberOfPeople - 1;
           }
 
-          // Ordenar membros por número de folgas (menor primeiro) e depois por posição
-          const sortedMembers = [...specMembers].sort((a, b) => {
-            if (a.folgasAtuais !== b.folgasAtuais) {
-              return a.folgasAtuais - b.folgasAtuais;
+          // Ordenar membros considerando a escala específica (preta ou vermelha)
+          const sortedMembers = [...availableMembers].sort((a, b) => {
+            // Comparar folgas da escala específica (preta ou vermelha)
+            const folgasA = isEscalaPreta
+              ? a.folgasAtualPreta
+              : a.folgasAtualVermelha;
+            const folgasB = isEscalaPreta
+              ? b.folgasAtualPreta
+              : b.folgasAtualVermelha;
+
+            if (folgasA !== folgasB) {
+              return folgasA - folgasB; // Menor número de folgas primeiro
             }
             return a.posicaoAtual - b.posicaoAtual;
           });
@@ -725,7 +834,15 @@ export default function FolgasCreatePage() {
               .get(specName)!
               .find((m) => m.id === member.id);
             if (originalMember) {
+              // Incrementar contador geral (compatibilidade)
               originalMember.folgasAtuais += folgasIncrement;
+
+              // Incrementar contador específico da escala (preta ou vermelha)
+              if (isEscalaPreta) {
+                originalMember.folgasAtualPreta += folgasIncrement;
+              } else {
+                originalMember.folgasAtualVermelha += folgasIncrement;
+              }
             }
           });
         }
@@ -737,7 +854,23 @@ export default function FolgasCreatePage() {
         // Em feriados, aplicar o mesmo multiplicador
         const folgasIncrement = isHoliday || isSpecialPeriod ? 1.5 : 1;
         membersOnlyForLeaveCountCopy.forEach((member) => {
-          member.folgasAtuais += folgasIncrement;
+          // Verificar se o membro participa desta escala
+          const shouldCountForThisScale =
+            member.tipoParticipacao === "ambas" ||
+            (isEscalaPreta && member.tipoParticipacao === "preta") ||
+            (isEscalaVermelha && member.tipoParticipacao === "vermelha");
+
+          if (shouldCountForThisScale) {
+            // Incrementar contador geral (compatibilidade)
+            member.folgasAtuais += folgasIncrement;
+
+            // Incrementar contador específico da escala (preta ou vermelha)
+            if (isEscalaPreta) {
+              member.folgasAtualPreta += folgasIncrement;
+            } else {
+              member.folgasAtualVermelha += folgasIncrement;
+            }
+          }
         });
 
         schedule.push({
@@ -759,7 +892,12 @@ export default function FolgasCreatePage() {
           (m) => m.id === member.id
         );
         return updatedMember
-          ? { ...member, folgasAtuais: updatedMember.folgasAtuais }
+          ? {
+              ...member,
+              folgasAtuais: updatedMember.folgasAtuais,
+              folgasAtualPreta: updatedMember.folgasAtualPreta,
+              folgasAtualVermelha: updatedMember.folgasAtualVermelha,
+            }
           : member;
       } else {
         // Para membros ativos
@@ -769,7 +907,12 @@ export default function FolgasCreatePage() {
         ] of membersBySpecialization.entries()) {
           const updatedMember = specMembers.find((m) => m.id === member.id);
           if (updatedMember) {
-            return { ...member, folgasAtuais: updatedMember.folgasAtuais };
+            return {
+              ...member,
+              folgasAtuais: updatedMember.folgasAtuais,
+              folgasAtualPreta: updatedMember.folgasAtualPreta,
+              folgasAtualVermelha: updatedMember.folgasAtualVermelha,
+            };
           }
         }
         return member;
@@ -1205,37 +1348,29 @@ export default function FolgasCreatePage() {
               <p className="text-muted-foreground">
                 Configure a escala de folgas para o setor selecionado, adicione
                 integrantes e gere a escala automaticamente.
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="ml-2 cursor-help text-blue-600 hover:text-blue-800 font-medium">
+                        ℹ️ Regras de Feriados
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-sm">
+                      <div className="space-y-2">
+                        <p className="font-semibold text-blue-700">
+                          Regras de Feriados na Escala Preta e Vermelha:
+                        </p>
+                        <ul className="text-xs space-y-1">
+                          <li>• Feriados nacionais aparecem destacados em vermelho 🎄</li>
+                          <li>• Em feriados, mais pessoas ficam de folga (escala reduzida)</li>
+                          <li>• Folgas em feriados valem 1.5x (vale mais no contador)</li>
+                          <li>• Períodos especiais (Natal/Ano Novo) têm regras diferenciadas ⭐</li>
+                        </ul>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </p>
-              <div className="mt-3 p-3 bg-blue-50 border-l-4 border-blue-400 rounded">
-                <div className="flex items-start">
-                  <div className="flex-shrink-0">
-                    <span className="text-blue-400">ℹ️</span>
-                  </div>
-                  <div className="ml-2">
-                    <p className="text-sm text-blue-700">
-                      <strong>
-                        Regras de Feriados na Escala Preta e Vermelha:
-                      </strong>
-                    </p>
-                    <ul className="text-xs text-blue-600 mt-1 space-y-1">
-                      <li>
-                        • Feriados nacionais aparecem destacados em vermelho 🎄
-                      </li>
-                      <li>
-                        • Em feriados, mais pessoas ficam de folga (escala
-                        reduzida)
-                      </li>
-                      <li>
-                        • Folgas em feriados valem 1.5x (vale mais no contador)
-                      </li>
-                      <li>
-                        • Períodos especiais (Natal/Ano Novo) têm regras
-                        diferenciadas ⭐
-                      </li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -1445,15 +1580,24 @@ export default function FolgasCreatePage() {
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="font-medium">Adicionar Integrante</h4>
                     {availableScales.length > 0 && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowImportDialog(true)}
-                        className="text-blue-600 border-blue-200 hover:bg-blue-50"
-                      >
-                        <Download className="h-4 w-4 mr-2" />
-                        Importar de Escala Anterior
-                      </Button>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setShowImportDialog(true)}
+                              className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                            >
+                              <Download className="h-4 w-4 mr-2" />
+                              Importar de Escala Anterior
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Importar integrantes e folgas de uma escala já criada</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     )}
                   </div>
 
@@ -1721,8 +1865,20 @@ export default function FolgasCreatePage() {
                     </div>
 
                     <div className="space-y-2">
-                      <label className="text-sm font-medium">
+                      <label className="text-sm font-medium flex items-center gap-2">
                         Dias de Trabalho
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-help text-blue-600 hover:text-blue-800">
+                                ℹ️
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Selecione os dias da semana em que a escala deve ser gerada</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       </label>
                       <div className="grid grid-cols-2 gap-2">
                         {DAYS_OF_WEEK.map((day) => (
@@ -1860,6 +2016,59 @@ export default function FolgasCreatePage() {
                                 className="w-20 h-8"
                               />
                             </div>
+                            <div className="flex items-center gap-2">
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <label className="text-sm cursor-help">
+                                      Participa da escala:
+                                    </label>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>
+                                      Escolha se participa apenas da escala
+                                      preta (dias úteis), vermelha (finais de
+                                      semana) ou ambas
+                                    </p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                              <Select
+                                value={member.tipoParticipacao}
+                                onValueChange={(
+                                  value: "ambas" | "preta" | "vermelha"
+                                ) =>
+                                  updateMemberTipoParticipacao(member.id, value)
+                                }
+                              >
+                                <SelectTrigger className="w-32 h-8">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="ambas">
+                                    <div className="flex items-center gap-2">
+                                      <div className="flex gap-1">
+                                        <div className="w-2 h-2 bg-black rounded"></div>
+                                        <div className="w-2 h-2 bg-red-500 rounded"></div>
+                                      </div>
+                                      Ambas
+                                    </div>
+                                  </SelectItem>
+                                  <SelectItem value="preta">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-3 h-3 bg-black rounded"></div>
+                                      Preta (dias úteis)
+                                    </div>
+                                  </SelectItem>
+                                  <SelectItem value="vermelha">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-3 h-3 bg-red-500 rounded"></div>
+                                      Vermelha (finais de semana)
+                                    </div>
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
                             <div className="text-sm text-muted-foreground">
                               Folgas atuais: {member.folgasAtuais}
                             </div>
@@ -1877,14 +2086,23 @@ export default function FolgasCreatePage() {
                     ))}
                   </div>
 
-                  <Button
-                    onClick={generateSchedule}
-                    className="w-full"
-                    disabled={scaleMembers.length < 2}
-                  >
-                    <Calculator className="h-4 w-4 mr-2" />
-                    Gerar Escala
-                  </Button>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          onClick={generateSchedule}
+                          className="w-full"
+                          disabled={scaleMembers.length < 2}
+                        >
+                          <Calculator className="h-4 w-4 mr-2" />
+                          Gerar Escala
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Gera automaticamente a escala de folgas baseada nas configurações e folgas dos integrantes</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
 
                   {generatedSchedule.length > 0 && (
                     <Button
@@ -1919,33 +2137,51 @@ export default function FolgasCreatePage() {
                   <div className="flex gap-2 justify-end">
                     {generatedSchedule.length > 0 && (
                       <>
-                        <Button
-                          onClick={printScale}
-                          variant="outline"
-                          size="sm"
-                        >
-                          <PrinterIcon className="mr-2 h-4 w-4" />
-                          Imprimir
-                        </Button>
-                        <Button
-                          onClick={saveScale}
-                          disabled={
-                            !scaleName.trim() ||
-                            scaleMembers.length === 0 ||
-                            generatedSchedule.length === 0 ||
-                            loading
-                          }
-                          size="sm"
-                        >
-                          {loading ? (
-                            "Salvando..."
-                          ) : (
-                            <>
-                              <Save className="mr-2 h-4 w-4" />
-                              Salvar Escala
-                            </>
-                          )}
-                        </Button>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                onClick={printScale}
+                                variant="outline"
+                                size="sm"
+                              >
+                                <PrinterIcon className="mr-2 h-4 w-4" />
+                                Imprimir
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Imprime a escala gerada com formatação profissional</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                onClick={saveScale}
+                                disabled={
+                                  !scaleName.trim() ||
+                                  scaleMembers.length === 0 ||
+                                  generatedSchedule.length === 0 ||
+                                  loading
+                                }
+                                size="sm"
+                              >
+                                {loading ? (
+                                  "Salvando..."
+                                ) : (
+                                  <>
+                                    <Save className="mr-2 h-4 w-4" />
+                                    Salvar Escala
+                                  </>
+                                )}
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Salva a escala no banco de dados para consulta posterior</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       </>
                     )}
                   </div>
@@ -2126,10 +2362,29 @@ export default function FolgasCreatePage() {
                     {member.posicaoAtual} | Folgas iniciais:{" "}
                     {member.folgasIniciais} | Folgas finais:{" "}
                     {member.folgasAtuais}
+                    <br />
+                    <small style={{ color: "#666" }}>
+                      📅 Escala Preta (dias úteis):{" "}
+                      {member.folgasAtualPreta || 0} folgas | 🔴 Escala Vermelha
+                      (finais de semana): {member.folgasAtualVermelha || 0}{" "}
+                      folgas
+                      {member.tipoParticipacao !== "ambas" && (
+                        <span
+                          style={{ fontWeight: "bold", marginLeft: "10px" }}
+                        >
+                          | Participa apenas da escala{" "}
+                          {member.tipoParticipacao === "preta"
+                            ? "PRETA (dias úteis)"
+                            : "VERMELHA (finais de semana)"}
+                        </span>
+                      )}
+                    </small>
                     {member.especializacaoNome && (
                       <span>
-                        {" "}
-                        | Especialização: {member.especializacaoNome}
+                        <br />
+                        <small>
+                          Especialização: {member.especializacaoNome}
+                        </small>
                       </span>
                     )}
                   </div>
@@ -2193,11 +2448,30 @@ export default function FolgasCreatePage() {
               <DialogTitle className="flex items-center gap-2">
                 <Download className="h-5 w-5" />
                 Importar Dados de Escala Anterior
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="cursor-help text-blue-600 hover:text-blue-800">
+                        ℹ️
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-sm">
+                      <div className="space-y-2">
+                        <p className="font-semibold">Como funciona a importação:</p>
+                        <ul className="text-xs space-y-1">
+                          <li>• Os integrantes da escala selecionada serão adicionados automaticamente</li>
+                          <li>• As folgas atuais serão usadas como folgas iniciais na nova escala</li>
+                          <li>• Especialização e configurações são preservadas</li>
+                          <li>• Integrantes já adicionados não serão duplicados</li>
+                        </ul>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </DialogTitle>
               <DialogDescription>
                 Selecione uma escala anterior para importar os dados de folgas
-                dos integrantes. Os valores de folgas atuais serão usados como
-                folgas iniciais na nova escala.
+                dos integrantes.
               </DialogDescription>
             </DialogHeader>
 
@@ -2235,16 +2509,6 @@ export default function FolgasCreatePage() {
                   </SelectContent>
                 </Select>
               </div>
-
-              {selectedScaleToImport && (
-                <div className="p-3 bg-blue-50 border border-blue-200 rounded">
-                  <p className="text-sm text-blue-800">
-                    <strong>Atenção:</strong> Os integrantes da escala
-                    selecionada serão adicionados automaticamente com suas
-                    folgas atuais como folgas iniciais da nova escala.
-                  </p>
-                </div>
-              )}
 
               {previewImportData.length > 0 && (
                 <div className="space-y-2">
