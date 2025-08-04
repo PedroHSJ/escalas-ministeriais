@@ -82,8 +82,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         isActive:
           pathname.startsWith("/generate") ||
           pathname.startsWith("/scales") ||
-          pathname.startsWith("/folgas") ||
-          pathname.startsWith("/feriados"),
+          pathname.startsWith("/folgas"),
         items: [
           {
             title: "Preta e Vermelha",
@@ -99,11 +98,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 title: "Listar",
                 url: "/folgas/list",
                 isActive: pathname.startsWith("/folgas/list"),
-              },
-              {
-                title: "Feriados",
-                url: "/feriados",
-                isActive: pathname.startsWith("/feriados"),
               },
             ],
           },
@@ -147,12 +141,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         title: "Configurações",
         url: "#",
         icon: Settings,
-        isActive: pathname.startsWith("/observacoes"),
+        isActive:
+          pathname.startsWith("/observacoes") ||
+          pathname.startsWith("/feriados"),
         items: [
           {
             title: "Observações",
             url: "/observacoes/list",
             isActive: pathname.startsWith("/observacoes"),
+          },
+          {
+            title: "Feriados",
+            url: "/feriados",
+            isActive: pathname.startsWith("/feriados"),
           },
         ],
       },
