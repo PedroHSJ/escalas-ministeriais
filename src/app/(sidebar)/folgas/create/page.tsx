@@ -140,7 +140,15 @@ export default function FolgasCreatePage() {
   const [scaleGeneration, setScaleGeneration] = useState<ScaleGeneration>({
     startDate: new Date(),
     endDate: addDays(new Date(), 30),
-    workingDays: ["monday", "tuesday", "wednesday", "thursday", "friday"],
+    workingDays: [
+      "monday",
+      "tuesday",
+      "wednesday",
+      "thursday",
+      "friday",
+      "saturday",
+      "sunday",
+    ],
   });
 
   const [generatedSchedule, setGeneratedSchedule] = useState<

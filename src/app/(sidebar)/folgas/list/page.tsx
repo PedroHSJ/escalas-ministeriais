@@ -135,7 +135,19 @@ export default function FolgasListPage() {
   };
 
   const fetchDepartments = async (organizationId?: string) => {
-    let query = supabase.from("departamentos").select("*").order("nome");
+    if (!userId) return;
+    let query = supabase
+      .from("departamentos")
+      .select(
+        `
+        *,
+        organizacoes!inner (
+          user_id
+        )
+      `
+      )
+      .eq("organizacoes.user_id", userId)
+      .order("nome");
 
     if (organizationId) {
       query = query.eq("organizacao_id", organizationId);
@@ -156,10 +168,10 @@ export default function FolgasListPage() {
       .select(
         `
         *,
-        departamentos (
+        departamentos!inner (
           nome,
           tipo_departamento,
-          organizacoes (
+          organizacoes!inner (
             nome,
             tipo,
             user_id
@@ -203,6 +215,20 @@ export default function FolgasListPage() {
   const fetchScalesByOrganization = async (organizationId: string) => {
     setLoading(true);
 
+    // Primeiro verificar se a organização pertence ao usuário
+    const { data: orgData, error: orgError } = await supabase
+      .from("organizacoes")
+      .select("id")
+      .eq("id", organizationId)
+      .eq("user_id", userId)
+      .single();
+
+    if (orgError || !orgData) {
+      console.error("Acesso negado: organização não pertence ao usuário");
+      setLoading(false);
+      return;
+    }
+
     const { data, error } = await supabase
       .from("escalas_folgas")
       .select(
@@ -214,7 +240,8 @@ export default function FolgasListPage() {
           organizacao_id,
           organizacoes!inner (
             nome,
-            tipo
+            tipo,
+            user_id
           )
         ),
         escala_folgas_participacoes (
@@ -225,6 +252,7 @@ export default function FolgasListPage() {
       `
       )
       .eq("departamentos.organizacao_id", organizationId)
+      .eq("departamentos.organizacoes.user_id", userId)
       .is("deleted_at", null) // Filtrar apenas escalas não excluídas
       .order("created_at", { ascending: false });
 
@@ -357,6 +385,31 @@ export default function FolgasListPage() {
     setEditDialog((prev) => ({ ...prev, isEditing: true }));
 
     try {
+      // Verificar se a escala pertence ao usuário antes de editar
+      const { data: scaleData, error: scaleError } = await supabase
+        .from("escalas_folgas")
+        .select(
+          `
+          id,
+          departamentos!inner (
+            organizacoes!inner (
+              user_id
+            )
+          )
+        `
+        )
+        .eq("id", editDialog.scale.id)
+        .eq("departamentos.organizacoes.user_id", userId)
+        .single();
+
+      if (scaleError || !scaleData) {
+        toast.error(
+          "Acesso negado: você não tem permissão para editar esta escala"
+        );
+        setEditDialog((prev) => ({ ...prev, isEditing: false }));
+        return;
+      }
+
       const { error } = await supabase
         .from("escalas_folgas")
         .update({ nome: editDialog.newName.trim() })
@@ -389,10 +442,10 @@ export default function FolgasListPage() {
       .select(
         `
         *,
-        departamentos (
+        departamentos!inner (
           nome,
           tipo_departamento,
-          organizacoes (
+          organizacoes!inner (
             nome,
             tipo,
             user_id
@@ -434,6 +487,30 @@ export default function FolgasListPage() {
 
   const restoreScale = async (scaleId: string, scaleName: string) => {
     try {
+      // Verificar se a escala pertence ao usuário antes de restaurar
+      const { data: scaleData, error: scaleError } = await supabase
+        .from("escalas_folgas")
+        .select(
+          `
+          id,
+          departamentos!inner (
+            organizacoes!inner (
+              user_id
+            )
+          )
+        `
+        )
+        .eq("id", scaleId)
+        .eq("departamentos.organizacoes.user_id", userId)
+        .single();
+
+      if (scaleError || !scaleData) {
+        toast.error(
+          "Acesso negado: você não tem permissão para restaurar esta escala"
+        );
+        return;
+      }
+
       const { error } = await supabase
         .from("escalas_folgas")
         .update({ deleted_at: null })
@@ -468,6 +545,30 @@ export default function FolgasListPage() {
     }
 
     try {
+      // Verificar se a escala pertence ao usuário antes de excluir permanentemente
+      const { data: scaleData, error: scaleError } = await supabase
+        .from("escalas_folgas")
+        .select(
+          `
+          id,
+          departamentos!inner (
+            organizacoes!inner (
+              user_id
+            )
+          )
+        `
+        )
+        .eq("id", scaleId)
+        .eq("departamentos.organizacoes.user_id", userId)
+        .single();
+
+      if (scaleError || !scaleData) {
+        toast.error(
+          "Acesso negado: você não tem permissão para excluir esta escala"
+        );
+        return;
+      }
+
       // Primeiro deletar as atribuições
       await supabase
         .from("escala_folgas_atribuicoes")
@@ -506,6 +607,31 @@ export default function FolgasListPage() {
     setDeleteDialog((prev) => ({ ...prev, isDeleting: true }));
 
     try {
+      // Verificar se a escala pertence ao usuário antes de excluir
+      const { data: scaleData, error: scaleError } = await supabase
+        .from("escalas_folgas")
+        .select(
+          `
+          id,
+          departamentos!inner (
+            organizacoes!inner (
+              user_id
+            )
+          )
+        `
+        )
+        .eq("id", deleteDialog.scale.id)
+        .eq("departamentos.organizacoes.user_id", userId)
+        .single();
+
+      if (scaleError || !scaleData) {
+        toast.error(
+          "Acesso negado: você não tem permissão para excluir esta escala"
+        );
+        setDeleteDialog((prev) => ({ ...prev, isDeleting: false }));
+        return;
+      }
+
       // Soft delete: apenas marcar como excluído
       const { error } = await supabase
         .from("escalas_folgas")
