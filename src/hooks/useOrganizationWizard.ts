@@ -55,11 +55,12 @@ export const useOrganizationWizard = (): UseOrganizationWizardReturn => {
       // Resetar seleções quando trocar de tipo de organização
       // Manter apenas especializações de departamentos personalizados existentes
       const preservedSpecializations: Record<string, string[]> = {};
-      
+
       // Preservar apenas especializações de departamentos personalizados
       prev.customDepartments.forEach((dept) => {
         if (prev.departmentSpecializations[dept.tipo]) {
-          preservedSpecializations[dept.tipo] = prev.departmentSpecializations[dept.tipo];
+          preservedSpecializations[dept.tipo] =
+            prev.departmentSpecializations[dept.tipo];
         }
       });
 

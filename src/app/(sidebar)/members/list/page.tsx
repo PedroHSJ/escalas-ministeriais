@@ -135,12 +135,14 @@ export default function Page() {
 
     let query = supabase
       .from("departamentos")
-      .select(`
+      .select(
+        `
         *,
         organizacoes!inner (
           user_id
         )
-      `)
+      `
+      )
       .eq("organizacoes.user_id", userId)
       .order("nome");
 
@@ -157,7 +159,7 @@ export default function Page() {
 
   const fetchAllMembers = async () => {
     if (!userId) return;
-    
+
     setLoading(true);
 
     // Buscar apenas integrantes das organizações do usuário logado
@@ -215,7 +217,7 @@ export default function Page() {
 
   const fetchMembersByOrganization = async (organizationId: string) => {
     if (!userId) return;
-    
+
     setLoading(true);
 
     const { data, error } = await supabase
@@ -283,9 +285,9 @@ export default function Page() {
     if (selectedOrganization && userId) {
       // Verificar se a organização selecionada pertence ao usuário
       const userOwnsOrganization = organizations.some(
-        org => org.id === selectedOrganization.id
+        (org) => org.id === selectedOrganization.id
       );
-      
+
       if (userOwnsOrganization) {
         fetchMembersByOrganization(selectedOrganization.id);
         fetchDepartments(selectedOrganization.id);
@@ -358,14 +360,16 @@ export default function Page() {
       // Primeiro verificar se o integrante pertence a uma organização do usuário
       const { data: memberCheck, error: checkError } = await supabase
         .from("integrantes")
-        .select(`
+        .select(
+          `
           id,
           departamentos!inner (
             organizacoes!inner (
               user_id
             )
           )
-        `)
+        `
+        )
         .eq("id", deleteDialog.member.id)
         .eq("departamentos.organizacoes.user_id", userId)
         .single();
@@ -410,7 +414,7 @@ export default function Page() {
   };
 
   // Filtrar departamentos que devem aparecer no FilterBar
-  const filteredDepartments = departments.filter(dept => {
+  const filteredDepartments = departments.filter((dept) => {
     if (selectedOrganization) {
       return dept.organizacao_id === selectedOrganization.id;
     }
