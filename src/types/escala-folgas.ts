@@ -72,6 +72,8 @@ export interface EscalaFolgaMember {
   apenasContabilizaFolgas?: boolean; // Para integrantes de férias/licença que só contabilizam folgas
   importadoDeEscala?: string; // ID da escala de onde foi importado (opcional)
   tipoParticipacao: TipoParticipacaoEscala; // Define se participa da escala preta, vermelha ou ambas
+  trabalho24h?: boolean; // Se verdadeiro, não pode ser escalado no dia seguinte
+  excecaoTrabalho24h?: boolean; // Marcação temporária para trabalho forçado após 24h
 }
 
 export interface EscalaFolgaAssignment {

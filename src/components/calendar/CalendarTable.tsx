@@ -15,6 +15,7 @@ interface CalendarData {
         especializacao?: string;
         tipo: "trabalho" | "folga";
         color: string;
+        textColor?: string;
       }
     >
   >;
@@ -104,11 +105,19 @@ export default function CalendarTable({
                 </span>
               </div>
               <div className="flex items-center gap-1.5 flex-shrink-0">
-                <div className="w-4 h-4 rounded border text-xs flex items-center justify-center font-bold bg-red-200 flex-shrink-0">
+                <div className="w-4 h-4 rounded border text-xs flex items-center justify-center font-bold bg-red-200 text-black flex-shrink-0">
                   1+
                 </div>
                 <span className="text-xs whitespace-nowrap">
-                  Dias de Folga (consecutivos)
+                  Folgas em Dias Úteis (texto preto)
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <div className="w-4 h-4 rounded border text-xs flex items-center justify-center font-bold bg-red-200 text-red-800 flex-shrink-0">
+                  1+
+                </div>
+                <span className="text-xs whitespace-nowrap">
+                  Folgas em Finais de Semana (texto vermelho escuro)
                 </span>
               </div>
             </div>
@@ -154,11 +163,14 @@ export default function CalendarTable({
                 // Função auxiliar para criar data segura
                 const createSafeDate = (dateStr: string) => {
                   // Se já tem horário ou não é formato YYYY-MM-DD, usar diretamente
-                  if (dateStr.includes('T') || !dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                  if (
+                    dateStr.includes("T") ||
+                    !dateStr.match(/^\d{4}-\d{2}-\d{2}$/)
+                  ) {
                     return new Date(dateStr);
                   }
                   // Caso contrário, adicionar horário para evitar problemas de fuso
-                  return new Date(dateStr + 'T12:00:00');
+                  return new Date(dateStr + "T12:00:00");
                 };
 
                 const dateObj = createSafeDate(date);
@@ -210,7 +222,12 @@ export default function CalendarTable({
                         backgroundColor: cellData?.color || "#f3f4f6",
                       }}
                     >
-                      <div className="w-4 h-4 rounded text-xs font-bold flex items-center justify-center mx-auto">
+                      <div
+                        className="w-4 h-4 rounded text-xs font-bold flex items-center justify-center mx-auto"
+                        style={{
+                          color: cellData?.textColor || "inherit",
+                        }}
+                      >
                         {cellData?.codigo || 0}
                       </div>
                     </td>

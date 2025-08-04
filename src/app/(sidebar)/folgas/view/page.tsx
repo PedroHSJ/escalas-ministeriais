@@ -266,6 +266,7 @@ export default function FolgasViewPage() {
           especializacao?: string;
           tipo: "trabalho" | "folga";
           color: string;
+          textColor?: string;
         }
       >
     > = {};
@@ -336,7 +337,8 @@ export default function FolgasViewPage() {
             calendarMatrix[memberName][date] = {
               codigo: codigoFolga,
               tipo: "folga",
-              color: "#fecaca", // vermelho claro para folga
+              color: "#fecaca", // vermelho claro para todas as folgas
+              textColor: isEscalaPreta ? "#000000" : "#991b1b", // texto preto para escala preta, vermelho escuro para escala vermelha
             };
           }
           // Se não há nem trabalho nem folga, não adiciona entrada para este dia

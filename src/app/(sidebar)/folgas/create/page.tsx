@@ -194,6 +194,7 @@ export default function FolgasCreatePage() {
           especializacao?: string;
           tipo: "trabalho" | "folga";
           color: string;
+          textColor?: string;
         }
       >
     > = {};
@@ -608,6 +609,7 @@ export default function FolgasCreatePage() {
       especializacaoNome: especialização?.nome,
       apenasContabilizaFolgas: apenasContabilizaFolgas,
       tipoParticipacao: "ambas", // Por padrão, participa de ambas as escalas
+      trabalho24h: false, // Por padrão, não é trabalho de 24h
     };
 
     setScaleMembers([...scaleMembers, newMember]);
@@ -699,6 +701,68 @@ export default function FolgasCreatePage() {
     );
   };
 
+  const addMembersBySpecialization = (especializacaoId: string) => {
+    const especialização = specializations.find((s) => s.id === especializacaoId);
+    
+    if (!especialização) {
+      toast.error("Especialização não encontrada");
+      return;
+    }
+
+    // Filtrar membros que têm esta especialização e não estão na escala
+    const availableMembers = members.filter((member) => {
+      // Verificar se o membro não está na escala
+      const alreadyInScale = scaleMembers.find((sm) => sm.id === member.id);
+      if (alreadyInScale) return false;
+
+      // Verificar se o membro tem a especialização desejada
+      const hasSpecialization = member.especializacoes?.some(
+        (e) => e.id === especializacaoId
+      );
+      return hasSpecialization;
+    });
+
+    if (availableMembers.length === 0) {
+      toast.info(`Nenhum integrante disponível com a especialização "${especialização.nome}"`);
+      return;
+    }
+
+    let addedCount = 0;
+    const newMembers: EscalaFolgaMember[] = [];
+
+    availableMembers.forEach((member) => {
+      const newMember: EscalaFolgaMember = {
+        id: member.id,
+        nome: member.nome,
+        folgasIniciais: 0,
+        folgasAtuais: 0,
+        folgasInicaisPreta: 0,
+        folgasAtualPreta: 0,
+        folgasIniciaisVermelha: 0,
+        folgasAtualVermelha: 0,
+        posicaoAtual: scaleMembers.length + addedCount + 1,
+        ativo: true,
+        especializacaoId: especializacaoId,
+        especializacaoNome: especialização.nome,
+        apenasContabilizaFolgas: false,
+        tipoParticipacao: "ambas",
+        trabalho24h: false,
+      };
+
+      newMembers.push(newMember);
+      addedCount++;
+    });
+
+    setScaleMembers([...scaleMembers, ...newMembers]);
+    setGeneratedSchedule([]);
+
+    toast.success(
+      `${addedCount} integrante${addedCount !== 1 ? "s" : ""} com especialização "${especialização.nome}" adicionado${
+        addedCount !== 1 ? "s" : ""
+      } à escala`
+    );
+  };
+
   const removeAllMembersFromScale = () => {
     if (scaleMembers.length === 0) {
       toast.info("Não há integrantes na escala para remover");
@@ -786,6 +850,41 @@ export default function FolgasCreatePage() {
       })
     );
     setGeneratedSchedule([]); // Limpar escala quando alterar tipo de participação
+  };
+
+  const updateMemberTrabalho24h = (memberId: string, trabalho24h: boolean) => {
+    setScaleMembers(
+      scaleMembers.map((m) => {
+        if (m.id === memberId) {
+          return {
+            ...m,
+            trabalho24h,
+          };
+        }
+        return m;
+      })
+    );
+    setGeneratedSchedule([]); // Limpar escala quando alterar configuração de 24h
+  };
+
+  const toggleAllTrabalho24h = () => {
+    const activeMembers = scaleMembers.filter(
+      (m) => !m.apenasContabilizaFolgas
+    );
+    const allMarked = activeMembers.every((m) => m.trabalho24h);
+
+    setScaleMembers(
+      scaleMembers.map((m) => {
+        if (!m.apenasContabilizaFolgas) {
+          return {
+            ...m,
+            trabalho24h: !allMarked,
+          };
+        }
+        return m;
+      })
+    );
+    setGeneratedSchedule([]); // Limpar escala quando alterar configuração de 24h
   };
 
   const toggleWorkingDay = (day: string) => {
@@ -978,9 +1077,88 @@ export default function FolgasCreatePage() {
             return a.posicaoAtual - b.posicaoAtual;
           });
 
-          // Os que têm menos folgas ficam de folga
-          const specOnLeave = sortedMembers.slice(0, numberOfOnLeave);
-          const specWorking = sortedMembers.slice(numberOfOnLeave);
+          // Verificar membros que trabalharam 24h no dia anterior e não podem trabalhar hoje
+          const previousDay = new Date(currentDate);
+          previousDay.setDate(previousDay.getDate() - 1);
+          const previousDayEntry = schedule.find(
+            (entry) => entry.date.toDateString() === previousDay.toDateString()
+          );
+
+          const membersWho24hYesterday = new Set<string>();
+          if (previousDayEntry) {
+            previousDayEntry.working.forEach((member) => {
+              if (member.trabalho24h) {
+                membersWho24hYesterday.add(member.id);
+              }
+            });
+          }
+
+          // Separar membros que podem trabalhar dos que devem ficar de folga por trabalho 24h anterior
+          const canWorkMembers: any[] = [];
+          const must24hLeaveMembers: any[] = [];
+
+          sortedMembers.forEach((member) => {
+            if (membersWho24hYesterday.has(member.id)) {
+              must24hLeaveMembers.push(member);
+            } else {
+              canWorkMembers.push(member);
+            }
+          });
+
+          // GARANTIR que sempre tenha pelo menos 1 pessoa trabalhando
+          // Se todos os membros disponíveis trabalharam 24h ontem, forçar o trabalho do menos "descansado"
+          let finalCanWorkMembers = canWorkMembers;
+          let finalMust24hLeaveMembers = must24hLeaveMembers;
+          let forcedWorkAfter24h = false;
+
+          if (canWorkMembers.length === 0 && must24hLeaveMembers.length > 0) {
+            // Situação crítica: todos trabalharam 24h ontem
+            // Escolher o que tem mais folgas para trabalhar (mais descansado)
+            const mostRestedMember = must24hLeaveMembers.reduce(
+              (prev, current) => {
+                const prevFolgas = isEscalaPreta
+                  ? prev.folgasAtualPreta
+                  : prev.folgasAtualVermelha;
+                const currentFolgas = isEscalaPreta
+                  ? current.folgasAtualPreta
+                  : current.folgasAtualVermelha;
+                return currentFolgas > prevFolgas ? current : prev;
+              }
+            );
+
+            finalCanWorkMembers = [mostRestedMember];
+            finalMust24hLeaveMembers = must24hLeaveMembers.filter(
+              (m) => m.id !== mostRestedMember.id
+            );
+            forcedWorkAfter24h = true;
+
+            // Marcar o membro como trabalhando em situação excepcional
+            mostRestedMember.excecaoTrabalho24h = true;
+          }
+
+          // Calcular quantas pessoas devem ficar de folga (excluindo as obrigatórias por 24h)
+          const maxPossibleOnLeave = Math.max(
+            0,
+            finalCanWorkMembers.length - 1
+          );
+          const targetOnLeave = Math.min(numberOfOnLeave, maxPossibleOnLeave);
+
+          // Dividir os membros que podem trabalhar
+          const canWorkOnLeave = finalCanWorkMembers.slice(0, targetOnLeave);
+          const canWorkWorking = finalCanWorkMembers.slice(targetOnLeave);
+
+          // Garantir que pelo menos 1 pessoa trabalhe por especialização
+          if (canWorkWorking.length === 0 && finalCanWorkMembers.length > 0) {
+            // Mover o último da folga para trabalho
+            const memberToWork = canWorkOnLeave.pop();
+            if (memberToWork) {
+              canWorkWorking.push(memberToWork);
+            }
+          }
+
+          // Combinar folgas: membros normais + membros em restrição 24h
+          const specOnLeave = [...canWorkOnLeave, ...finalMust24hLeaveMembers];
+          const specWorking = canWorkWorking;
 
           // Adicionar aos arrays do dia
           dayWorking.push(...specWorking);
@@ -991,7 +1169,6 @@ export default function FolgasCreatePage() {
 
           // Atualizar folgas dos que ficaram de folga nesta especialização
           // Em feriados, aplicar multiplicador de folgas (vale mais)
-
           specOnLeave.forEach((member) => {
             const originalMember = membersBySpecialization
               .get(specName)!
@@ -1789,6 +1966,50 @@ export default function FolgasCreatePage() {
                         </TooltipProvider>
                       )}
 
+                      {/* Botão Adicionar por Especialização */}
+                      {specializations.length > 0 && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Select
+                                onValueChange={(value) => addMembersBySpecialization(value)}
+                              >
+                                <SelectTrigger className="w-auto text-purple-600 border-purple-200 hover:bg-purple-50">
+                                  <Users className="h-4 w-4 mr-2" />
+                                  <SelectValue placeholder="Adicionar por Especialização" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {specializations.map((spec) => {
+                                    const availableCount = members.filter((member) => {
+                                      const alreadyInScale = scaleMembers.find((sm) => sm.id === member.id);
+                                      const hasSpecialization = member.especializacoes?.some(
+                                        (e) => e.id === spec.id
+                                      );
+                                      return !alreadyInScale && hasSpecialization;
+                                    }).length;
+
+                                    return (
+                                      <SelectItem 
+                                        key={spec.id} 
+                                        value={spec.id}
+                                        disabled={availableCount === 0}
+                                      >
+                                        {spec.nome} ({availableCount} disponível{availableCount !== 1 ? "is" : ""})
+                                      </SelectItem>
+                                    );
+                                  })}
+                                </SelectContent>
+                              </Select>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>
+                                Adicionar todos os integrantes disponíveis de uma especialização específica
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+
                       {/* Botão Importar de Escala Anterior */}
                       {availableScales.length > 0 && (
                         <TooltipProvider>
@@ -2192,24 +2413,62 @@ export default function FolgasCreatePage() {
                   </CardDescription>
                 </div>
                 {scaleMembers.length > 0 && (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={removeAllMembersFromScale}
-                          className="text-red-600 border-red-200 hover:bg-red-50"
-                        >
-                          <X className="h-4 w-4 mr-2" />
-                          Remover Todos
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Remover todos os integrantes da escala</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+                  <div className="flex gap-2">
+                    {/* Botão Marcar Todos como Trabalho 24h */}
+                    {scaleMembers.filter((m) => !m.apenasContabilizaFolgas)
+                      .length > 0 && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={toggleAllTrabalho24h}
+                              className="text-orange-600 border-orange-200 hover:bg-orange-50"
+                            >
+                              <div className="h-4 w-4 mr-2 rounded bg-orange-600 text-white text-xs flex items-center justify-center font-bold">
+                                24
+                              </div>
+                              {scaleMembers
+                                .filter((m) => !m.apenasContabilizaFolgas)
+                                .every((m) => m.trabalho24h)
+                                ? "Desmarcar"
+                                : "Marcar"}{" "}
+                              Todos 24h
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>
+                              {scaleMembers
+                                .filter((m) => !m.apenasContabilizaFolgas)
+                                .every((m) => m.trabalho24h)
+                                ? "Desmarcar todos os integrantes como trabalho de 24h"
+                                : "Marcar todos os integrantes ativos como trabalho de 24h"}
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={removeAllMembersFromScale}
+                            className="text-red-600 border-red-200 hover:bg-red-50"
+                          >
+                            <X className="h-4 w-4 mr-2" />
+                            Remover Todos
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Remover todos os integrantes da escala</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
                 )}
               </div>
             </CardHeader>
@@ -2261,6 +2520,14 @@ export default function FolgasCreatePage() {
                                 className="bg-blue-100 text-blue-700 border-blue-300"
                               >
                                 Importado
+                              </Badge>
+                            )}
+                            {member.trabalho24h && (
+                              <Badge
+                                variant="secondary"
+                                className="bg-orange-100 text-orange-700 border-orange-300"
+                              >
+                                24h
                               </Badge>
                             )}
                           </div>
@@ -2358,6 +2625,37 @@ export default function FolgasCreatePage() {
                                   </SelectItem>
                                 </SelectContent>
                               </Select>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Checkbox
+                                      id={`trabalho24h-${member.id}`}
+                                      checked={member.trabalho24h || false}
+                                      onCheckedChange={(checked) =>
+                                        updateMemberTrabalho24h(
+                                          member.id,
+                                          checked === true
+                                        )
+                                      }
+                                    />
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>
+                                      Se marcado, este integrante não poderá ser
+                                      escalado no dia seguinte quando trabalhar
+                                      (ideal para plantões de 24h)
+                                    </p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                              <label
+                                htmlFor={`trabalho24h-${member.id}`}
+                                className="text-sm cursor-pointer"
+                              >
+                                Trabalho 24h
+                              </label>
                             </div>
                             <div className="text-sm text-muted-foreground">
                               Folgas atuais: {member.folgasAtuais}
@@ -2589,7 +2887,19 @@ export default function FolgasCreatePage() {
                           <div className="print-members">
                             {(day.assignments[spec!] || []).map(
                               (member, idx) => (
-                                <div key={member.id}>{member.nome}</div>
+                                <div key={member.id}>
+                                  {member.nome}
+                                  {member.trabalho24h && (
+                                    <span className="text-xs bg-orange-100 text-orange-800 px-1 rounded ml-1">
+                                      24h
+                                    </span>
+                                  )}
+                                  {member.excecaoTrabalho24h && (
+                                    <span className="text-xs bg-red-100 text-red-800 px-1 rounded ml-1">
+                                      ⚠️ Exceção
+                                    </span>
+                                  )}
+                                </div>
                               )
                             )}
                           </div>
@@ -2600,7 +2910,19 @@ export default function FolgasCreatePage() {
                           <div className="print-members">
                             {(day.assignments["Sem Especialização"] || []).map(
                               (member, idx) => (
-                                <div key={member.id}>{member.nome}</div>
+                                <div key={member.id}>
+                                  {member.nome}
+                                  {member.trabalho24h && (
+                                    <span className="text-xs bg-orange-100 text-orange-800 px-1 rounded ml-1">
+                                      24h
+                                    </span>
+                                  )}
+                                  {member.excecaoTrabalho24h && (
+                                    <span className="text-xs bg-red-100 text-red-800 px-1 rounded ml-1">
+                                      ⚠️ Exceção
+                                    </span>
+                                  )}
+                                </div>
                               )
                             )}
                           </div>
@@ -2608,9 +2930,34 @@ export default function FolgasCreatePage() {
                       )}
                       <td className="print-leave">
                         <div className="print-members">
-                          {day.onLeave.map((member, idx) => (
-                            <div key={member.id}>{member.nome}</div>
-                          ))}
+                          {day.onLeave.map((member, idx) => {
+                            // Verificar se está de folga por trabalho 24h do dia anterior
+                            const previousDay = new Date(day.date);
+                            previousDay.setDate(previousDay.getDate() - 1);
+                            const previousDayEntry = generatedSchedule.find(
+                              (entry) =>
+                                entry.date.toDateString() ===
+                                previousDay.toDateString()
+                            );
+
+                            const was24hYesterday =
+                              previousDayEntry?.working.some(
+                                (workingMember) =>
+                                  workingMember.id === member.id &&
+                                  workingMember.trabalho24h
+                              );
+
+                            return (
+                              <div key={member.id}>
+                                {member.nome}
+                                {was24hYesterday && (
+                                  <span className="text-xs bg-blue-100 text-blue-800 px-1 rounded ml-1">
+                                    Pós-24h
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       </td>
                     </tr>
@@ -2632,9 +2979,11 @@ export default function FolgasCreatePage() {
                     <br />
                     <small style={{ color: "#666" }}>
                       📅 Escala Preta (dias úteis):{" "}
-                      {member.folgasAtualPreta || 0} folgas | 🔴 Escala Vermelha
-                      (finais de semana): {member.folgasAtualVermelha || 0}{" "}
-                      folgas
+                      {member.folgasAtualPreta || 0} folgas |{" "}
+                      <span style={{ color: "#DC2626" }}>
+                        🔴 Escala Vermelha (finais de semana):{" "}
+                        {member.folgasAtualVermelha || 0} folgas
+                      </span>
                       {member.tipoParticipacao !== "ambas" && (
                         <span
                           style={{ fontWeight: "bold", marginLeft: "10px" }}
@@ -2651,6 +3000,15 @@ export default function FolgasCreatePage() {
                         <br />
                         <small>
                           Especialização: {member.especializacaoNome}
+                        </small>
+                      </span>
+                    )}
+                    {member.trabalho24h && (
+                      <span>
+                        <br />
+                        <small style={{ color: "#D97706", fontWeight: "bold" }}>
+                          ⏰ Trabalho de 24 horas (não pode trabalhar no dia
+                          seguinte)
                         </small>
                       </span>
                     )}
@@ -2676,6 +3034,55 @@ export default function FolgasCreatePage() {
               </div>
               <div style={{ marginBottom: "5px" }}>
                 4. A troca de serviço poderá ser autorizada pela coordenação.
+              </div>
+              <div
+                style={{
+                  marginTop: "15px",
+                  fontWeight: "bold",
+                  marginBottom: "5px",
+                }}
+              >
+                Legenda:
+              </div>
+              <div style={{ marginBottom: "5px" }}>
+                •{" "}
+                <span
+                  style={{
+                    backgroundColor: "#FEF3C7",
+                    padding: "2px 4px",
+                    borderRadius: "3px",
+                  }}
+                >
+                  24h
+                </span>{" "}
+                = Trabalho de 24 horas
+              </div>
+              <div style={{ marginBottom: "5px" }}>
+                •{" "}
+                <span
+                  style={{
+                    backgroundColor: "#DBEAFE",
+                    padding: "2px 4px",
+                    borderRadius: "3px",
+                  }}
+                >
+                  Pós-24h
+                </span>{" "}
+                = Folga obrigatória após trabalho de 24h
+              </div>
+              <div style={{ marginBottom: "5px" }}>
+                •{" "}
+                <span
+                  style={{
+                    backgroundColor: "#FEE2E2",
+                    padding: "2px 4px",
+                    borderRadius: "3px",
+                  }}
+                >
+                  ⚠️ Exceção
+                </span>{" "}
+                = Trabalho forçado após 24h (situação crítica - todos
+                trabalharam 24h no dia anterior)
               </div>
             </div>
 
