@@ -47,6 +47,7 @@ import {
   EscalaFolgaParticipacaoType,
   EscalaFolgaAtribuicaoType,
 } from "@/types/escala-folgas";
+import { ObservacaoTemplate } from "@/types/observacoes";
 import CalendarTable from "@/components/calendar/CalendarTable";
 import { NavigationButton } from "@/components/ui/navigation-button";
 
@@ -70,6 +71,8 @@ export default function FolgasViewPage() {
   const [printStartDate, setPrintStartDate] = useState("");
   const [printEndDate, setPrintEndDate] = useState("");
   const [printFullPeriod, setPrintFullPeriod] = useState(true);
+  const [observacaoTemplate, setObservacaoTemplate] =
+    useState<ObservacaoTemplate | null>(null);
 
   const fetchScale = async () => {
     if (!scaleId) {
@@ -80,20 +83,30 @@ export default function FolgasViewPage() {
     setLoading(true);
 
     try {
-      // Buscar dados da escala
+      // Buscar dados da escala (sem join)
       const { data: scaleData, error: scaleError } = await supabase
         .from("escalas_folgas")
         .select(
           `
-          *,
-          departamentos (
-            nome,
-            tipo_departamento,
-            organizacoes (
+            *,
+            departamentos (
               nome,
-              tipo
+              tipo_departamento,
+              organizacoes (
+                nome,
+                tipo
+              )
+            ),
+            observacoes_templates (
+              id,
+              nome,
+              descricao,
+              observacoes,
+              ativo,
+              created_at,
+              updated_at,
+              organizacao_id
             )
-          )
         `
         )
         .eq("id", scaleId)
@@ -112,6 +125,20 @@ export default function FolgasViewPage() {
           },
         },
       });
+
+      // Setar o template de observações se existir (jsonb)
+      if (scaleData.observacoes_templates) {
+        setObservacaoTemplate({
+          ...scaleData.observacoes_templates,
+          observacoes: Array.isArray(
+            scaleData.observacoes_templates.observacoes
+          )
+            ? scaleData.observacoes_templates.observacoes
+            : [],
+        });
+      } else {
+        setObservacaoTemplate(null);
+      }
 
       // Buscar participações
       const { data: participationsData, error: participationsError } =
@@ -379,8 +406,8 @@ export default function FolgasViewPage() {
   const handlePrintConfirm = () => {
     setShowPrintDialog(false);
     printScale(
-      includeSignature, 
-      signatureName, 
+      includeSignature,
+      signatureName,
       signatureTitle,
       printFullPeriod ? null : printStartDate,
       printFullPeriod ? null : printEndDate
@@ -433,7 +460,7 @@ export default function FolgasViewPage() {
     // Filtrar datas se o período específico foi selecionado
     let filteredDates = calendarData.dates;
     if (startDate && endDate) {
-      filteredDates = calendarData.dates.filter(date => {
+      filteredDates = calendarData.dates.filter((date) => {
         return date >= startDate && date <= endDate;
       });
     }
@@ -734,13 +761,20 @@ export default function FolgasViewPage() {
           </tbody>
         </table>
 
-        <div class="obs-section">
-          <div class="obs-title">OBS:</div>
-          <div class="obs-item">1. O militar que estiver na copa das <u>panelas</u> é o responsável pelo lixo da cozinha;</div>
-          <div class="obs-item">2. O horário de chegada dos militares ao <strong>RANCHO</strong> é às 6:45 horas;</div>
-          <div class="obs-item">3. O militar que estiver <u>entrando de serviço</u> chegará obrigatoriamente às 06:00 horas pronto;</div>
-          <div class="obs-item">4. A troca de serviço poderá ser autorizada por um <u>graduado</u>;</div>
-        </div>
+        ${
+          observacaoTemplate && observacaoTemplate.observacoes?.length > 0
+            ? `<div class="obs-section">
+                <div class="obs-title">OBS:</div>
+                ${observacaoTemplate.observacoes
+                  .sort((a, b) => a.ordem - b.ordem)
+                  .map(
+                    (obs, idx) =>
+                      `<div class="obs-item">${idx + 1}. ${obs.texto}</div>`
+                  )
+                  .join("")}
+              </div>`
+            : ""
+        }
 
         <div class="footer">
           <div>${scale.departamento?.organizacao?.nome}</div>
@@ -978,7 +1012,7 @@ export default function FolgasViewPage() {
                     Imprimir período completo
                   </Label>
                 </div>
-                
+
                 {!printFullPeriod && (
                   <div className="space-y-3 pl-6 border-l-2 border-gray-200">
                     <div className="grid grid-cols-4 items-center gap-4">
@@ -1004,16 +1038,19 @@ export default function FolgasViewPage() {
                         type="date"
                         value={printEndDate}
                         onChange={(e) => setPrintEndDate(e.target.value)}
-                        min={printStartDate || (calendarData?.dates[0])}
+                        min={printStartDate || calendarData?.dates[0]}
                         max={calendarData?.dates[calendarData.dates.length - 1]}
                         className="col-span-3"
                       />
                     </div>
-                    {!printFullPeriod && printStartDate && printEndDate && printStartDate > printEndDate && (
-                      <p className="text-sm text-red-600 pl-4">
-                        A data inicial deve ser anterior à data final
-                      </p>
-                    )}
+                    {!printFullPeriod &&
+                      printStartDate &&
+                      printEndDate &&
+                      printStartDate > printEndDate && (
+                        <p className="text-sm text-red-600 pl-4">
+                          A data inicial deve ser anterior à data final
+                        </p>
+                      )}
                   </div>
                 )}
               </div>
@@ -1067,12 +1104,14 @@ export default function FolgasViewPage() {
               >
                 Cancelar
               </Button>
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 onClick={handlePrintConfirm}
                 disabled={
-                  !printFullPeriod && 
-                  (!printStartDate || !printEndDate || printStartDate > printEndDate)
+                  !printFullPeriod &&
+                  (!printStartDate ||
+                    !printEndDate ||
+                    printStartDate > printEndDate)
                 }
               >
                 Imprimir
