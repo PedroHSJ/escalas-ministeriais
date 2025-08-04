@@ -131,7 +131,18 @@ export default function Page() {
   };
 
   const fetchDepartments = async (organizationId?: string) => {
-    let query = supabase.from("departamentos").select("*").order("nome");
+    if (!userId) return;
+
+    let query = supabase
+      .from("departamentos")
+      .select(`
+        *,
+        organizacoes!inner (
+          user_id
+        )
+      `)
+      .eq("organizacoes.user_id", userId)
+      .order("nome");
 
     if (organizationId) {
       query = query.eq("organizacao_id", organizationId);
@@ -145,19 +156,24 @@ export default function Page() {
   };
 
   const fetchAllMembers = async () => {
+    if (!userId) return;
+    
     setLoading(true);
 
+    // Buscar apenas integrantes das organizações do usuário logado
     const { data, error } = await supabase
       .from("integrantes")
       .select(
         `
         *,
-        departamentos (
+        departamentos!inner (
           nome,
           tipo_departamento,
-          organizacoes (
+          organizacao_id,
+          organizacoes!inner (
             nome,
-            tipo
+            tipo,
+            user_id
           )
         ),
         integrante_especializacoes (
@@ -169,6 +185,7 @@ export default function Page() {
         )
       `
       )
+      .eq("departamentos.organizacoes.user_id", userId)
       .order("nome");
 
     if (!error && data) {
@@ -197,6 +214,8 @@ export default function Page() {
   };
 
   const fetchMembersByOrganization = async (organizationId: string) => {
+    if (!userId) return;
+    
     setLoading(true);
 
     const { data, error } = await supabase
@@ -210,7 +229,8 @@ export default function Page() {
           organizacao_id,
           organizacoes!inner (
             nome,
-            tipo
+            tipo,
+            user_id
           )
         ),
         integrante_especializacoes (
@@ -223,6 +243,7 @@ export default function Page() {
       `
       )
       .eq("departamentos.organizacao_id", organizationId)
+      .eq("departamentos.organizacoes.user_id", userId)
       .order("nome");
 
     if (!error && data) {
@@ -259,15 +280,22 @@ export default function Page() {
   }, [userId]);
 
   useEffect(() => {
-    if (selectedOrganization) {
-      fetchMembersByOrganization(selectedOrganization.id);
-      fetchDepartments(selectedOrganization.id);
-      setSelectedDepartment(undefined);
+    if (selectedOrganization && userId) {
+      // Verificar se a organização selecionada pertence ao usuário
+      const userOwnsOrganization = organizations.some(
+        org => org.id === selectedOrganization.id
+      );
+      
+      if (userOwnsOrganization) {
+        fetchMembersByOrganization(selectedOrganization.id);
+        fetchDepartments(selectedOrganization.id);
+        setSelectedDepartment(undefined);
+      }
     } else if (userId) {
       fetchAllMembers();
       fetchDepartments();
     }
-  }, [selectedOrganization]);
+  }, [selectedOrganization, organizations, userId]);
 
   // Filtros
   useEffect(() => {
@@ -322,11 +350,30 @@ export default function Page() {
   };
 
   const confirmDeleteMember = async () => {
-    if (!deleteDialog.member) return;
+    if (!deleteDialog.member || !userId) return;
 
     setDeleteDialog((prev) => ({ ...prev, isDeleting: true }));
 
     try {
+      // Primeiro verificar se o integrante pertence a uma organização do usuário
+      const { data: memberCheck, error: checkError } = await supabase
+        .from("integrantes")
+        .select(`
+          id,
+          departamentos!inner (
+            organizacoes!inner (
+              user_id
+            )
+          )
+        `)
+        .eq("id", deleteDialog.member.id)
+        .eq("departamentos.organizacoes.user_id", userId)
+        .single();
+
+      if (checkError || !memberCheck) {
+        throw new Error("Você não tem permissão para excluir este integrante");
+      }
+
       const { error } = await supabase
         .from("integrantes")
         .delete()
@@ -361,6 +408,14 @@ export default function Page() {
     setSelectedDepartment(undefined);
     setSearchTerm("");
   };
+
+  // Filtrar departamentos que devem aparecer no FilterBar
+  const filteredDepartments = departments.filter(dept => {
+    if (selectedOrganization) {
+      return dept.organizacao_id === selectedOrganization.id;
+    }
+    return true; // Se não há organização selecionada, mostrar todos os departamentos do usuário
+  });
 
   if (!selectedOrganization) {
     return (
@@ -425,7 +480,7 @@ export default function Page() {
           selectedDepartment={selectedDepartment}
           setSelectedDepartment={setSelectedDepartment}
           organizations={organizations}
-          departments={departments}
+          departments={filteredDepartments}
           searchPlaceholder="Nome, departamento, especialização..."
           showDepartmentFilter={true}
           onClearFilters={clearFilters}
