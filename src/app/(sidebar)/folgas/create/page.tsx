@@ -702,8 +702,10 @@ export default function FolgasCreatePage() {
   };
 
   const addMembersBySpecialization = (especializacaoId: string) => {
-    const especialização = specializations.find((s) => s.id === especializacaoId);
-    
+    const especialização = specializations.find(
+      (s) => s.id === especializacaoId
+    );
+
     if (!especialização) {
       toast.error("Especialização não encontrada");
       return;
@@ -723,7 +725,9 @@ export default function FolgasCreatePage() {
     });
 
     if (availableMembers.length === 0) {
-      toast.info(`Nenhum integrante disponível com a especialização "${especialização.nome}"`);
+      toast.info(
+        `Nenhum integrante disponível com a especialização "${especialização.nome}"`
+      );
       return;
     }
 
@@ -757,7 +761,9 @@ export default function FolgasCreatePage() {
     setGeneratedSchedule([]);
 
     toast.success(
-      `${addedCount} integrante${addedCount !== 1 ? "s" : ""} com especialização "${especialização.nome}" adicionado${
+      `${addedCount} integrante${
+        addedCount !== 1 ? "s" : ""
+      } com especialização "${especialização.nome}" adicionado${
         addedCount !== 1 ? "s" : ""
       } à escala`
     );
@@ -1972,7 +1978,9 @@ export default function FolgasCreatePage() {
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Select
-                                onValueChange={(value) => addMembersBySpecialization(value)}
+                                onValueChange={(value) =>
+                                  addMembersBySpecialization(value)
+                                }
                               >
                                 <SelectTrigger className="w-auto text-purple-600 border-purple-200 hover:bg-purple-50">
                                   <Users className="h-4 w-4 mr-2" />
@@ -1980,21 +1988,30 @@ export default function FolgasCreatePage() {
                                 </SelectTrigger>
                                 <SelectContent>
                                   {specializations.map((spec) => {
-                                    const availableCount = members.filter((member) => {
-                                      const alreadyInScale = scaleMembers.find((sm) => sm.id === member.id);
-                                      const hasSpecialization = member.especializacoes?.some(
-                                        (e) => e.id === spec.id
-                                      );
-                                      return !alreadyInScale && hasSpecialization;
-                                    }).length;
+                                    const availableCount = members.filter(
+                                      (member) => {
+                                        const alreadyInScale =
+                                          scaleMembers.find(
+                                            (sm) => sm.id === member.id
+                                          );
+                                        const hasSpecialization =
+                                          member.especializacoes?.some(
+                                            (e) => e.id === spec.id
+                                          );
+                                        return (
+                                          !alreadyInScale && hasSpecialization
+                                        );
+                                      }
+                                    ).length;
 
                                     return (
-                                      <SelectItem 
-                                        key={spec.id} 
+                                      <SelectItem
+                                        key={spec.id}
                                         value={spec.id}
                                         disabled={availableCount === 0}
                                       >
-                                        {spec.nome} ({availableCount} disponível{availableCount !== 1 ? "is" : ""})
+                                        {spec.nome} ({availableCount} disponível
+                                        {availableCount !== 1 ? "is" : ""})
                                       </SelectItem>
                                     );
                                   })}
@@ -2003,7 +2020,8 @@ export default function FolgasCreatePage() {
                             </TooltipTrigger>
                             <TooltipContent>
                               <p>
-                                Adicionar todos os integrantes disponíveis de uma especialização específica
+                                Adicionar todos os integrantes disponíveis de
+                                uma especialização específica
                               </p>
                             </TooltipContent>
                           </Tooltip>
