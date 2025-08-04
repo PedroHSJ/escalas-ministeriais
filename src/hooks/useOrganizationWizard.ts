@@ -52,23 +52,14 @@ export const useOrganizationWizard = (): UseOrganizationWizardReturn => {
   const setOrganizationType = useCallback((type: string) => {
     const template = getTemplate(type);
     setWizardData((prev) => {
-      // Preservar especializações personalizadas já adicionadas
-      const mergedSpecializations = { ...template.especializacoes };
-
-      // Para cada departamento existente, manter as especializações personalizadas
-      Object.keys(prev.departmentSpecializations).forEach((deptTipo) => {
-        if (mergedSpecializations[deptTipo]) {
-          // Combinar especializações do template com as personalizadas
-          const templateSpecs = mergedSpecializations[deptTipo];
-          const customSpecs = prev.departmentSpecializations[deptTipo] || [];
-          // Remover duplicatas mantendo as personalizadas
-          mergedSpecializations[deptTipo] = [
-            ...new Set([...templateSpecs, ...customSpecs]),
-          ];
-        } else {
-          // Manter especializações de departamentos personalizados
-          mergedSpecializations[deptTipo] =
-            prev.departmentSpecializations[deptTipo];
+      // Resetar seleções quando trocar de tipo de organização
+      // Manter apenas especializações de departamentos personalizados existentes
+      const preservedSpecializations: Record<string, string[]> = {};
+      
+      // Preservar apenas especializações de departamentos personalizados
+      prev.customDepartments.forEach((dept) => {
+        if (prev.departmentSpecializations[dept.tipo]) {
+          preservedSpecializations[dept.tipo] = prev.departmentSpecializations[dept.tipo];
         }
       });
 
@@ -76,8 +67,8 @@ export const useOrganizationWizard = (): UseOrganizationWizardReturn => {
         ...prev,
         organizationType: type,
         template,
-        selectedDepartments: template.departamentos,
-        departmentSpecializations: mergedSpecializations,
+        selectedDepartments: [], // Não selecionar departamentos automaticamente
+        departmentSpecializations: preservedSpecializations, // Começar vazio para novos tipos
       };
     });
   }, []);
