@@ -176,7 +176,7 @@ jobs:
 # Trabalhe normalmente nos branches
 git checkout dev
 git add .
-git commit -m "feat: nova funcionalidade"
+git commit -m "feat: nova funcionalidade de teste"
 git push origin dev
 
 # ❌ NÃO dispara deploy (auto-deploy desativado)
