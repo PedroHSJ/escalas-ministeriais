@@ -38,6 +38,9 @@ export interface EscalaPlantaoParticipacao {
   horas_maximas_semana: number;
   disponivel_fins_semana: boolean;
   prioridade: number; // 1=baixa, 2=normal, 3=alta
+  max_plantoes_noturnos_consecutivos: number; // Máximo de plantões noturnos seguidos
+  intervalo_minimo_horas: number; // Intervalo mínimo entre plantões (padrão 11h)
+  pode_trabalhar_24h: boolean; // Se pode fazer plantões de 24h
   ativo: boolean;
   created_at: string;
   // Relacionamentos
@@ -216,3 +219,72 @@ export const TURNOS_PADRAO: Omit<
     ativo: true,
   },
 ];
+
+// Turnos específicos para Enfermagem (12h)
+export const ENFERMAGEM_TURNOS_PADRAO: Omit<
+  TipoTurno,
+  "id" | "organizacao_id" | "created_at"
+>[] = [
+  {
+    nome: "Manhã 12h",
+    hora_inicio: "07:00",
+    hora_fim: "19:00",
+    duracao_horas: 12,
+    ativo: true,
+  },
+  {
+    nome: "Noite 12h",
+    hora_inicio: "19:00",
+    hora_fim: "07:00",
+    duracao_horas: 12,
+    ativo: true,
+  },
+  {
+    nome: "Plantão 24h",
+    hora_inicio: "07:00",
+    hora_fim: "07:00",
+    duracao_horas: 24,
+    ativo: true,
+  },
+];
+
+// Regras específicas para profissionais de enfermagem
+export interface NursingRules {
+  minWeeklyHours: 30; // CLT: 30h semanais
+  normalWeeklyHours: 36; // Padrão: 36h semanais
+  maxWeeklyHours: 60; // Máximo legal: 60h com extras
+  maxDailyHours: 12; // Máximo por dia: 12h
+  maxConsecutiveHours: 24; // Máximo consecutivo: 24h
+  minRestBetweenShifts: 11; // Mínimo entre plantões: 11h (CLT Art. 66)
+  minRestAfter24h: 36; // Descanso após 24h: 36h
+  maxConsecutiveNightShifts: 2; // Máximo 2 noites seguidas
+  maxOvertimeHoursPerDay: 2; // Máximo 2h extras por dia
+  weeklyRestHours: 24; // Descanso semanal: 24h consecutivas
+}
+
+export const NURSING_RULES: NursingRules = {
+  minWeeklyHours: 30,
+  normalWeeklyHours: 36,
+  maxWeeklyHours: 60,
+  maxDailyHours: 12,
+  maxConsecutiveHours: 24,
+  minRestBetweenShifts: 11,
+  minRestAfter24h: 36,
+  maxConsecutiveNightShifts: 2,
+  maxOvertimeHoursPerDay: 2,
+  weeklyRestHours: 24,
+};
+
+// Funções de validação para enfermagem
+export interface ShiftValidation {
+  isValid: boolean;
+  reason?: string;
+  warning?: string;
+}
+
+export interface LastShiftInfo {
+  date: Date;
+  endTime: Date;
+  duration: number;
+  isNightShift: boolean;
+}

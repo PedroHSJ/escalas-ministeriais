@@ -59,12 +59,21 @@ import { format, addDays, startOfWeek } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { EscalaFolgaMember } from "@/types/escala-folgas";
-import { TipoTurno } from "@/types/plantoes";
+import {
+  TipoTurno,
+  ENFERMAGEM_TURNOS_PADRAO,
+  NURSING_RULES,
+} from "@/types/plantoes";
+import {
+  validateNursingShift,
+  calculateWeeklyHours,
+} from "@/utils/nursingValidation";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { ObservacaoTemplate } from "@/types/observacoes";
 import Link from "next/link";
 import CalendarTable from "@/components/calendar/CalendarTable";
+import PlantaoPreview from "@/components/calendar/PlantaoPreview";
 import { NavigationButton } from "@/components/ui/navigation-button";
 
 interface Organization {
@@ -108,8 +117,13 @@ interface PlantaoMember extends EscalaFolgaMember {
   horas_maximas_semana: number;
   disponivel_fins_semana: boolean;
   prioridade: number; // 1=baixa, 2=normal, 3=alta
+  max_plantoes_noturnos_consecutivos: number; // Máximo de plantões noturnos seguidos
+  intervalo_minimo_horas: number; // Intervalo mínimo entre plantões
+  pode_trabalhar_24h: boolean; // Se pode fazer plantões de 24h
   horasTrabalhadasSemana?: number; // Controle temporal
   ultimoTurno?: string; // Controle temporal
+  ultimoPlantaoData?: Date; // Data do último plantão
+  plantoesNoturnosConsecutivos?: number; // Contador de plantões noturnos consecutivos
 }
 
 const DAYS_OF_WEEK = [
@@ -129,6 +143,7 @@ export default function FolgasCreatePage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [specializations, setSpecializations] = useState<Specialization[]>([]);
   const [tiposTurnos, setTiposTurnos] = useState<TipoTurno[]>([]);
+  const [isNursingMode, setIsNursingMode] = useState<boolean>(false); // Modo enfermagem
   const [observacaoTemplates, setObservacaoTemplates] = useState<
     ObservacaoTemplate[]
   >([]);
@@ -422,52 +437,51 @@ export default function FolgasCreatePage() {
       .eq("ativo", true)
       .order("hora_inicio");
 
-    if (!error && data) {
+    if (!error && data && data.length > 0) {
       setTiposTurnos(data);
     } else {
-      // Se não houver turnos cadastrados, criar turnos padrão
-      setTiposTurnos([
-        {
-          id: "manha",
-          nome: "Manhã",
-          hora_inicio: "06:00",
-          hora_fim: "12:00",
-          duracao_horas: 6,
+      // Se não houver turnos cadastrados, usar turnos baseados no modo selecionado
+      const turnosPadrao = isNursingMode
+        ? ENFERMAGEM_TURNOS_PADRAO
+        : [
+            {
+              nome: "Manhã",
+              hora_inicio: "06:00",
+              hora_fim: "12:00",
+              duracao_horas: 6,
+              ativo: true,
+            },
+            {
+              nome: "Tarde",
+              hora_inicio: "12:00",
+              hora_fim: "18:00",
+              duracao_horas: 6,
+              ativo: true,
+            },
+            {
+              nome: "Noite",
+              hora_inicio: "18:00",
+              hora_fim: "00:00",
+              duracao_horas: 6,
+              ativo: true,
+            },
+            {
+              nome: "Madrugada",
+              hora_inicio: "00:00",
+              hora_fim: "06:00",
+              duracao_horas: 6,
+              ativo: true,
+            },
+          ];
+
+      setTiposTurnos(
+        turnosPadrao.map((turno, index) => ({
+          ...turno,
+          id: `${turno.nome.toLowerCase()}-${index}`,
           organizacao_id: organizationId,
-          ativo: true,
           created_at: new Date().toISOString(),
-        },
-        {
-          id: "tarde",
-          nome: "Tarde",
-          hora_inicio: "12:00",
-          hora_fim: "18:00",
-          duracao_horas: 6,
-          organizacao_id: organizationId,
-          ativo: true,
-          created_at: new Date().toISOString(),
-        },
-        {
-          id: "noite",
-          nome: "Noite",
-          hora_inicio: "18:00",
-          hora_fim: "00:00",
-          duracao_horas: 6,
-          organizacao_id: organizationId,
-          ativo: true,
-          created_at: new Date().toISOString(),
-        },
-        {
-          id: "madrugada",
-          nome: "Madrugada",
-          hora_inicio: "00:00",
-          hora_fim: "06:00",
-          duracao_horas: 6,
-          organizacao_id: organizationId,
-          ativo: true,
-          created_at: new Date().toISOString(),
-        },
-      ]);
+        }))
+      );
     }
   };
 
@@ -675,6 +689,13 @@ export default function FolgasCreatePage() {
     }
   }, [departments, selectedDepartment]);
 
+  // Effect para recarregar turnos quando o modo for alterado
+  useEffect(() => {
+    if (selectedOrganization) {
+      fetchTiposTurnos(selectedOrganization.id);
+    }
+  }, [isNursingMode, selectedOrganization]);
+
   const addMemberToScale = (
     member: Member,
     especializacaoId?: string,
@@ -709,10 +730,19 @@ export default function FolgasCreatePage() {
       trabalho24h: false, // Por padrão, não é trabalho de 24h
       // Propriedades específicas para plantões
       tipos_turnos_disponiveis: turnosDisponiveis,
-      horas_minimas_semana: 24,
-      horas_maximas_semana: 48,
+      horas_minimas_semana: isNursingMode
+        ? NURSING_RULES.normalWeeklyHours
+        : 24,
+      horas_maximas_semana: isNursingMode ? NURSING_RULES.maxWeeklyHours : 48,
       disponivel_fins_semana: true,
       prioridade: 2,
+      max_plantoes_noturnos_consecutivos: isNursingMode
+        ? NURSING_RULES.maxConsecutiveNightShifts
+        : 3,
+      intervalo_minimo_horas: isNursingMode
+        ? NURSING_RULES.minRestBetweenShifts
+        : 8,
+      pode_trabalhar_24h: isNursingMode ? true : false,
     } as any;
 
     setScaleMembers([...scaleMembers, newMember]);
@@ -1025,34 +1055,57 @@ export default function FolgasCreatePage() {
       }>;
     }> = [];
 
-    // Usar turnos configurados ou turnos padrão
+    // Usar turnos configurados ou turnos padrão baseados no modo
     const shiftsToUse =
       tiposTurnos.length > 0
         ? tiposTurnos
+        : isNursingMode
+        ? ENFERMAGEM_TURNOS_PADRAO.map((turno, index) => ({
+            ...turno,
+            id: `${turno.nome.toLowerCase()}-${index}`,
+            organizacao_id: selectedOrganization?.id || "",
+            created_at: new Date().toISOString(),
+          }))
         : [
             {
+              id: "manha",
               nome: "Manhã",
               hora_inicio: "06:00",
               hora_fim: "12:00",
               duracao_horas: 6,
+              organizacao_id: selectedOrganization?.id || "",
+              ativo: true,
+              created_at: new Date().toISOString(),
             },
             {
+              id: "tarde",
               nome: "Tarde",
               hora_inicio: "12:00",
               hora_fim: "18:00",
               duracao_horas: 6,
+              organizacao_id: selectedOrganization?.id || "",
+              ativo: true,
+              created_at: new Date().toISOString(),
             },
             {
+              id: "noite",
               nome: "Noite",
               hora_inicio: "18:00",
               hora_fim: "00:00",
               duracao_horas: 6,
+              organizacao_id: selectedOrganization?.id || "",
+              ativo: true,
+              created_at: new Date().toISOString(),
             },
             {
+              id: "madrugada",
               nome: "Madrugada",
               hora_inicio: "00:00",
               hora_fim: "06:00",
               duracao_horas: 6,
+              organizacao_id: selectedOrganization?.id || "",
+              ativo: true,
+              created_at: new Date().toISOString(),
             },
           ];
 
@@ -1067,12 +1120,23 @@ export default function FolgasCreatePage() {
       membersBySpecialization.get(specKey)!.push({
         ...member,
         tipos_turnos_disponiveis: [], // Por enquanto vazio
-        horas_minimas_semana: 24,
-        horas_maximas_semana: 48,
+        horas_minimas_semana: isNursingMode
+          ? NURSING_RULES.normalWeeklyHours
+          : 24,
+        horas_maximas_semana: isNursingMode ? NURSING_RULES.maxWeeklyHours : 48,
         disponivel_fins_semana: true,
         prioridade: 2,
+        max_plantoes_noturnos_consecutivos: isNursingMode
+          ? NURSING_RULES.maxConsecutiveNightShifts
+          : 3,
+        intervalo_minimo_horas: isNursingMode
+          ? NURSING_RULES.minRestBetweenShifts
+          : 8,
+        pode_trabalhar_24h: isNursingMode ? true : false,
         horasTrabalhadasSemana: 0, // Controle de horas semanais
         ultimoTurno: "", // Controle de rotação de turnos
+        ultimoPlantaoData: undefined, // Data do último plantão
+        plantoesNoturnosConsecutivos: 0, // Contador de plantões noturnos consecutivos
       } as PlantaoMember);
     });
 
@@ -1084,6 +1148,57 @@ export default function FolgasCreatePage() {
     scaleMembers.forEach((member) => {
       memberTurnRotation.set(member.id, 0);
     });
+
+    // Histórico de turnos por membro para validação de intervalos
+    const memberLastShift = new Map<string, {
+      date: Date;
+      endTime: string;
+      shiftName: string;
+      duration: number;
+    }>();
+
+    // Histórico completo de plantões por membro (para validação de enfermagem)
+    const memberScheduleHistory = new Map<string, Array<{
+      id: string;
+      escala_plantao_id: string;
+      tipo_turno_id: string;
+      integrante_id: string;
+      data: string;
+      status: "confirmado" | "realizado";
+      created_at: string;
+      tipo_turno?: TipoTurno;
+    }>>();
+
+    // Inicializar histórico vazio para cada membro
+    scaleMembers.forEach((member) => {
+      memberScheduleHistory.set(member.id, []);
+    });
+
+    // Função para calcular horas entre turnos
+    const calculateHoursBetweenShifts = (
+      lastShiftDate: Date,
+      lastShiftEndTime: string,
+      currentShiftDate: Date,
+      currentShiftStartTime: string
+    ): number => {
+      const [lastHour, lastMinute] = lastShiftEndTime.split(':').map(Number);
+      const [currentHour, currentMinute] = currentShiftStartTime.split(':').map(Number);
+      
+      const lastShiftEnd = new Date(lastShiftDate);
+      lastShiftEnd.setHours(lastHour, lastMinute, 0, 0);
+      
+      const currentShiftStart = new Date(currentShiftDate);
+      currentShiftStart.setHours(currentHour, currentMinute, 0, 0);
+      
+      // Se o turno atual é no dia seguinte mas o horário é menor (ex: 06:00 após 18:00), 
+      // significa que passou pela meia-noite
+      if (currentShiftStart < lastShiftEnd && currentShiftDate > lastShiftDate) {
+        currentShiftStart.setDate(currentShiftStart.getDate() + 1);
+      }
+      
+      const diffMs = currentShiftStart.getTime() - lastShiftEnd.getTime();
+      return Math.max(0, diffMs / (1000 * 60 * 60)); // Converter para horas
+    };
 
     while (currentDate <= endDate) {
       const dayOfWeek = currentDate.getDay();
@@ -1116,7 +1231,82 @@ export default function FolgasCreatePage() {
 
             // Filtrar membros disponíveis para este turno
             const availableMembers = specMembers.filter((member) => {
-              // Verificar se não trabalhou no turno anterior para evitar dupla jornada
+              // Se modo enfermagem, usar validações específicas
+              if (isNursingMode) {
+                // Validação 1: Não permitir múltiplos turnos no mesmo dia para enfermagem
+                const memberAlreadyWorksToday = dayShifts.some(s => s.integrante.id === member.id);
+                if (memberAlreadyWorksToday) {
+                  return false; // Bloquear qualquer turno adicional no mesmo dia
+                }
+                
+                // Validação 2: Impedir plantões de mais de 24h consecutivas
+                const memberHistory = memberScheduleHistory.get(member.id) || [];
+                if (memberHistory.length > 0) {
+                  const lastPlantao = memberHistory[memberHistory.length - 1];
+                  if (lastPlantao && lastPlantao.tipo_turno) {
+                    // Se o último plantão foi >= 24h, verificar se passou tempo suficiente
+                    if (lastPlantao.tipo_turno.duracao_horas >= 24) {
+                      const lastDate = new Date(lastPlantao.data);
+                      const [lastEndHour, lastEndMinute] = lastPlantao.tipo_turno.hora_fim.split(':').map(Number);
+                      const lastEndTime = new Date(lastDate);
+                      lastEndTime.setHours(lastEndHour, lastEndMinute, 0, 0);
+                      
+                      // Se termina no dia seguinte (turno noturno)
+                      if (lastEndHour < Number(lastPlantao.tipo_turno.hora_inicio.split(':')[0])) {
+                        lastEndTime.setDate(lastEndTime.getDate() + 1);
+                      }
+                      
+                      const currentStartTime = new Date(currentDate);
+                      const [currentStartHour, currentStartMinute] = shift.hora_inicio.split(':').map(Number);
+                      currentStartTime.setHours(currentStartHour, currentStartMinute, 0, 0);
+                      
+                      const restHours = (currentStartTime.getTime() - lastEndTime.getTime()) / (1000 * 60 * 60);
+                      
+                      // Após plantão de 24h, exigir 36h de descanso (Lei 7.498/86)
+                      if (restHours < 36) {
+                        console.log(`[ENFERMAGEM 24H] ${member.nome} bloqueado: plantão de ${lastPlantao.tipo_turno.duracao_horas}h em ${format(lastDate, 'dd/MM')}, apenas ${restHours.toFixed(1)}h de descanso (mín: 36h)`);
+                        return false;
+                      }
+                    }
+                    
+                    // Validação adicional: impedir que um turno normal se torne >24h consecutivas
+                    if (shift.duracao_horas > 12 && lastPlantao.tipo_turno.duracao_horas >= 12) {
+                      // Verificar se os turnos são consecutivos (mesmo dia ou dia seguinte)
+                      const lastDate = new Date(lastPlantao.data);
+                      const currentDate_check = new Date(currentDate);
+                      const daysDiff = Math.abs(currentDate_check.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24);
+                      
+                      if (daysDiff <= 1) {
+                        const totalConsecutiveHours = lastPlantao.tipo_turno.duracao_horas + shift.duracao_horas;
+                        if (totalConsecutiveHours > 24) {
+                          console.log(`[ENFERMAGEM 48H] ${member.nome} bloqueado: ${lastPlantao.tipo_turno.duracao_horas}h + ${shift.duracao_horas}h = ${totalConsecutiveHours}h (máx: 24h consecutivas)`);
+                          return false;
+                        }
+                      }
+                    }
+                  }
+                }
+                
+                // Validação 3: Usar validações específicas de enfermagem
+                const validation = validateNursingShift(
+                  memberHistory,
+                  {
+                    date: currentDate.toISOString().split("T")[0],
+                    turno: shift,
+                    horasSemanais: member.horasTrabalhadasSemana || 0,
+                  }
+                );
+                
+                // Log detalhado para debug do modo enfermagem
+                if (!validation.isValid) {
+                  console.log(`[ENFERMAGEM] ${member.nome} - ${shift.nome} em ${format(currentDate, 'dd/MM')}: ${validation.reason}`);
+                }
+                
+                return validation.isValid;
+              }
+
+              // Validações básicas para modo padrão
+              // 1. Verificar se não trabalhou no turno anterior no mesmo dia
               const previousShift = dayShifts.find(
                 (s) =>
                   s.integrante.id === member.id &&
@@ -1125,7 +1315,22 @@ export default function FolgasCreatePage() {
 
               if (previousShift) return false;
 
-              // Verificar limite de horas semanais (assumindo 40h/semana máximo)
+              // 2. Verificar intervalo mínimo desde o último plantão (entre dias)
+              const lastShift = memberLastShift.get(member.id);
+              if (lastShift) {
+                const hoursSinceLastShift = calculateHoursBetweenShifts(
+                  lastShift.date,
+                  lastShift.endTime,
+                  currentDate,
+                  shift.hora_inicio
+                );
+                
+                if (hoursSinceLastShift < member.intervalo_minimo_horas) {
+                  return false;
+                }
+              }
+
+              // 3. Verificar limite de horas semanais
               if (
                 (member.horasTrabalhadasSemana || 0) + shift.duracao_horas >
                 member.horas_maximas_semana
@@ -1133,18 +1338,114 @@ export default function FolgasCreatePage() {
                 return false;
               }
 
+              // 4. Verificar se pode trabalhar 24h (para turnos longos)
+              if (shift.duracao_horas >= 24 && !member.pode_trabalhar_24h) {
+                return false;
+              }
+
               return true;
             });
 
             if (availableMembers.length === 0) {
-              // Se nenhum membro disponível, usar o com menos horas trabalhadas
-              const memberWithLeastHours = specMembers.reduce((prev, current) =>
-                (prev.horasTrabalhadasSemana || 0) <
-                (current.horasTrabalhadasSemana || 0)
-                  ? prev
-                  : current
-              );
-              availableMembers.push(memberWithLeastHours);
+              // Se nenhum membro disponível, usar estratégia diferente para enfermagem vs padrão
+              if (isNursingMode) {
+                // Para enfermagem: ser mais rigoroso, só aceitar se respeitar intervalo mínimo
+                const membersWithMinRest = specMembers.filter((member) => {
+                  const memberHistory = memberScheduleHistory.get(member.id) || [];
+                  
+                  // Se nunca trabalhou, está disponível
+                  if (memberHistory.length === 0) return true;
+                  
+                  // Verificar apenas intervalo mínimo (sem outras validações)
+                  const lastHistoryEntry = memberHistory[memberHistory.length - 1];
+                  if (!lastHistoryEntry || !lastHistoryEntry.tipo_turno) return true;
+                  
+                  const lastShiftDate = new Date(lastHistoryEntry.data);
+                  const lastShiftEnd = new Date(lastShiftDate);
+                  const [endHour, endMinute] = lastHistoryEntry.tipo_turno.hora_fim.split(':').map(Number);
+                  lastShiftEnd.setHours(endHour, endMinute, 0, 0);
+                  
+                  // Se o turno termina no dia seguinte (passa da meia-noite)
+                  if (endHour < Number(lastHistoryEntry.tipo_turno.hora_inicio.split(':')[0])) {
+                    lastShiftEnd.setDate(lastShiftEnd.getDate() + 1);
+                  }
+                  
+                  const currentShiftStart = new Date(currentDate);
+                  const [startHour, startMinute] = shift.hora_inicio.split(':').map(Number);
+                  currentShiftStart.setHours(startHour, startMinute, 0, 0);
+                  
+                  const hoursDiff = (currentShiftStart.getTime() - lastShiftEnd.getTime()) / (1000 * 60 * 60);
+                  
+                  // Intervalo mínimo mais rigoroso para enfermagem
+                  const minHours = lastHistoryEntry.tipo_turno.duracao_horas >= 24 ? 36 : 11;
+                  return hoursDiff >= minHours;
+                });
+
+                if (membersWithMinRest.length > 0) {
+                  // Entre os que respeitam intervalo, escolher o com menos horas semanais
+                  const memberWithLeastHours = membersWithMinRest.reduce((prev, current) =>
+                    (prev.horasTrabalhadasSemana || 0) < (current.horasTrabalhadasSemana || 0)
+                      ? prev
+                      : current
+                  );
+                  availableMembers.push(memberWithLeastHours);
+                } else {
+                  // Em último caso, pular este turno/especialização
+                  console.warn(`[ENFERMAGEM] Nenhum membro disponível para ${shift.nome} - ${specName} em ${format(currentDate, 'dd/MM')} - respeitando intervalos mínimos`);
+                  continue;
+                }
+              } else {
+                // Para modo padrão, usar estratégia de balanceamento original
+                const membersWithRest = specMembers.filter((member) => {
+                  const lastShift = memberLastShift.get(member.id);
+                  if (!lastShift) return true; // Se nunca trabalhou, está disponível
+                  
+                  const hoursSinceLastShift = calculateHoursBetweenShifts(
+                    lastShift.date,
+                    lastShift.endTime,
+                    currentDate,
+                    shift.hora_inicio
+                  );
+                  
+                  return hoursSinceLastShift >= member.intervalo_minimo_horas;
+                });
+
+                if (membersWithRest.length > 0) {
+                  // Entre os que respeitam o intervalo, escolher o com menos horas
+                  const memberWithLeastHours = membersWithRest.reduce((prev, current) =>
+                    (prev.horasTrabalhadasSemana || 0) < (current.horasTrabalhadasSemana || 0)
+                      ? prev
+                      : current
+                  );
+                  availableMembers.push(memberWithLeastHours);
+                } else {
+                  // Em último caso, usar o membro com mais tempo de descanso
+                  const memberWithMostRest = specMembers.reduce((prev, current) => {
+                    const prevLastShift = memberLastShift.get(prev.id);
+                    const currentLastShift = memberLastShift.get(current.id);
+                    
+                    if (!prevLastShift) return current;
+                    if (!currentLastShift) return prev;
+                    
+                    const prevRest = calculateHoursBetweenShifts(
+                      prevLastShift.date,
+                      prevLastShift.endTime,
+                      currentDate,
+                      shift.hora_inicio
+                    );
+                    
+                    const currentRest = calculateHoursBetweenShifts(
+                      currentLastShift.date,
+                      currentLastShift.endTime,
+                      currentDate,
+                      shift.hora_inicio
+                    );
+                    
+                    return prevRest > currentRest ? prev : current;
+                  });
+                  availableMembers.push(memberWithMostRest);
+                }
+              }
             }
 
             // Selecionar membro baseado na rotação
@@ -1162,6 +1463,28 @@ export default function FolgasCreatePage() {
               (selectedMember.horasTrabalhadasSemana || 0) +
               shift.duracao_horas;
             selectedMember.ultimoTurno = shift.nome;
+
+            // Atualizar histórico do último plantão do membro
+            memberLastShift.set(selectedMember.id, {
+              date: new Date(currentDate),
+              endTime: shift.hora_fim,
+              shiftName: shift.nome,
+              duration: shift.duracao_horas,
+            });
+
+            // Atualizar histórico completo para validação de enfermagem
+            const memberHistory = memberScheduleHistory.get(selectedMember.id) || [];
+            memberHistory.push({
+              id: `temp-${Date.now()}-${selectedMember.id}`,
+              escala_plantao_id: "temp",
+              tipo_turno_id: shift.id || "temp",
+              integrante_id: selectedMember.id,
+              data: currentDate.toISOString().split("T")[0],
+              status: "confirmado",
+              created_at: new Date().toISOString(),
+              tipo_turno: shift,
+            });
+            memberScheduleHistory.set(selectedMember.id, memberHistory);
 
             dayShifts.push({
               turnoNome: shift.nome,
@@ -1195,18 +1518,119 @@ export default function FolgasCreatePage() {
     }
 
     setGeneratedSchedule(schedule);
+    
+    // Log para debug dos intervalos
+    console.log("Escala gerada - Verificação de intervalos:");
+    memberLastShift.forEach((lastShift, memberId) => {
+      const memberName = scaleMembers.find(m => m.id === memberId)?.nome;
+      console.log(`${memberName}: último turno em ${format(lastShift.date, 'dd/MM')} às ${lastShift.endTime} (${lastShift.shiftName} - ${lastShift.duration}h)`);
+    });
+    
+    // Validação adicional para modo enfermagem - verificar se algum membro trabalhou mais de 24h consecutivas
+    if (isNursingMode) {
+      let hasViolations = false;
+      let consecutiveViolations = false;
+      
+      memberScheduleHistory.forEach((history, memberId) => {
+        const memberName = scaleMembers.find(m => m.id === memberId)?.nome;
+        
+        for (let i = 0; i < history.length - 1; i++) {
+          const current = history[i];
+          const next = history[i + 1];
+          
+          if (!current.tipo_turno || !next.tipo_turno) continue;
+          
+          const currentEnd = new Date(current.data);
+          const [currentEndHour, currentEndMinute] = current.tipo_turno.hora_fim.split(':').map(Number);
+          currentEnd.setHours(currentEndHour, currentEndMinute, 0, 0);
+          
+          // Se o turno termina no dia seguinte
+          if (currentEndHour < Number(current.tipo_turno.hora_inicio.split(':')[0])) {
+            currentEnd.setDate(currentEnd.getDate() + 1);
+          }
+          
+          const nextStart = new Date(next.data);
+          const [nextStartHour, nextStartMinute] = next.tipo_turno.hora_inicio.split(':').map(Number);
+          nextStart.setHours(nextStartHour, nextStartMinute, 0, 0);
+          
+          const restHours = (nextStart.getTime() - currentEnd.getTime()) / (1000 * 60 * 60);
+          const minRestRequired = current.tipo_turno.duracao_horas >= 24 ? 36 : 11;
+          
+          // Verificação de intervalo insuficiente
+          if (restHours < minRestRequired) {
+            console.error(`[ENFERMAGEM VIOLAÇÃO] ${memberName}: ${restHours.toFixed(1)}h de descanso entre ${format(currentEnd, 'dd/MM HH:mm')} e ${format(nextStart, 'dd/MM HH:mm')} (mínimo: ${minRestRequired}h)`);
+            hasViolations = true;
+          }
+          
+          // Verificação específica de mais de 24h consecutivas
+          if (restHours >= 0 && restHours < 8) { // Turnos potencialmente consecutivos
+            const totalConsecutiveHours = current.tipo_turno.duracao_horas + next.tipo_turno.duracao_horas;
+            if (totalConsecutiveHours > 24) {
+              console.error(`[ENFERMAGEM 48H VIOLAÇÃO] ${memberName}: ${totalConsecutiveHours}h consecutivas (${current.tipo_turno.duracao_horas}h + ${next.tipo_turno.duracao_horas}h) entre ${format(new Date(current.data), 'dd/MM')} e ${format(new Date(next.data), 'dd/MM')} - MÁXIMO LEGAL: 24h`);
+              consecutiveViolations = true;
+              hasViolations = true;
+            }
+          }
+        }
+      });
+      
+      if (hasViolations) {
+        let errorMessage = "ATENÇÃO: Foram detectadas violações das regras de enfermagem!";
+        let description = "Verifique o console para detalhes. Considere ajustar o período ou adicionar mais profissionais.";
+        
+        if (consecutiveViolations) {
+          errorMessage = "🚨 VIOLAÇÃO CRÍTICA: Plantões de mais de 24h consecutivas detectados!";
+          description = "Lei 7.498/86 e COFEN 424/2012 PROÍBEM plantões superiores a 24h seguidas. Ajuste obrigatório!";
+        }
+        
+        toast.error(errorMessage, {
+          description: description,
+          duration: 10000, // 10 segundos para violações críticas
+        });
+      }
+    }
+    
     toast.success("Escala de plantões gerada com sucesso!", {
-      description: `${schedule.length} dias com turnos programados`,
+      description: `${schedule.length} dias com turnos programados${isNursingMode ? ' (Modo Enfermagem)' : ''}`,
     });
   };
 
   // Função auxiliar para verificar turnos consecutivos
   const isPreviousShift = (shiftA: string, shiftB: string): boolean => {
+    if (isNursingMode) {
+      // Para enfermagem, não permitir qualquer turno consecutivo no mesmo dia
+      return true; // Bloquear qualquer combinação no mesmo dia
+    }
+
+    // Para modo padrão, verificar sequência de turnos que podem ser problemáticos
     const shiftOrder = ["Madrugada", "Manhã", "Tarde", "Noite"];
     const indexA = shiftOrder.indexOf(shiftA);
     const indexB = shiftOrder.indexOf(shiftB);
 
-    return (indexA + 1) % shiftOrder.length === indexB;
+    // Não permitir turnos imediatamente consecutivos
+    if (indexA !== -1 && indexB !== -1) {
+      return (indexA + 1) % shiftOrder.length === indexB;
+    }
+
+    // Verificação adicional por nome similar
+    const consecutivePairs = [
+      ["Manhã", "Tarde"],
+      ["Tarde", "Noite"], 
+      ["Noite", "Madrugada"],
+      ["Madrugada", "Manhã"]
+    ];
+
+    return consecutivePairs.some(([first, second]) => 
+      shiftA === first && shiftB === second
+    );
+  };
+
+  // Função auxiliar para verificar se é turno noturno
+  const isNightShift = (shiftName: string): boolean => {
+    const nightKeywords = ["noite", "madrugada", "noturno"];
+    return nightKeywords.some((keyword) =>
+      shiftName.toLowerCase().includes(keyword)
+    );
   };
 
   const saveScale = async () => {
@@ -1658,10 +2082,22 @@ export default function FolgasCreatePage() {
               <ArrowLeft className="h-4 w-4" />
             </NavigationButton>
             <div>
-              <h1 className="text-3xl font-bold">Gerar Escala de Plantões</h1>
+              <div className="flex items-center gap-3">
+                <h1 className="text-3xl font-bold">Gerar Escala de Plantões</h1>
+                {isNursingMode && (
+                  <Badge
+                    variant="secondary"
+                    className="bg-green-100 text-green-700 border-green-300"
+                  >
+                    Modo Enfermagem
+                  </Badge>
+                )}
+              </div>
               <p className="text-muted-foreground">
                 Configure a escala de plantões. Adicione integrantes, defina
                 folgas e gere a escala automaticamente.
+                {isNursingMode &&
+                  " Regras específicas para profissionais de enfermagem aplicadas."}
               </p>
             </div>
           </div>
@@ -2182,6 +2618,99 @@ export default function FolgasCreatePage() {
                 </div>
               )}
 
+              {/* Configuração do Modo de Plantão */}
+              <div className="border-t pt-4">
+                <h4 className="font-medium mb-3">Tipo de Plantão</h4>
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-3">
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="radio"
+                        id="modo-padrao"
+                        name="modo-plantao"
+                        checked={!isNursingMode}
+                        onChange={() => {
+                          setIsNursingMode(false);
+                          setGeneratedSchedule([]);
+                          if (selectedOrganization) {
+                            fetchTiposTurnos(selectedOrganization.id);
+                          }
+                        }}
+                        className="w-4 h-4 text-blue-600"
+                      />
+                      <label
+                        htmlFor="modo-padrao"
+                        className="text-sm font-medium"
+                      >
+                        Padrão (4 turnos de 6h)
+                      </label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="radio"
+                        id="modo-enfermagem"
+                        name="modo-plantao"
+                        checked={isNursingMode}
+                        onChange={() => {
+                          setIsNursingMode(true);
+                          setGeneratedSchedule([]);
+                          if (selectedOrganization) {
+                            fetchTiposTurnos(selectedOrganization.id);
+                          }
+                        }}
+                        className="w-4 h-4 text-blue-600"
+                      />
+                      <label
+                        htmlFor="modo-enfermagem"
+                        className="text-sm font-medium"
+                      >
+                        Enfermagem (12h e 24h)
+                      </label>
+                    </div>
+                  </div>
+
+                  {isNursingMode && (
+                    <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-2 h-2 bg-green-600 rounded-full"></div>
+                        <span className="text-sm font-medium text-green-800">
+                          Modo Enfermagem Ativado
+                        </span>
+                      </div>
+                      <ul className="text-xs text-green-700 space-y-1">
+                        <li>
+                          • Turnos de 12h: Manhã (07:00-19:00) e Noite
+                          (19:00-07:00)
+                        </li>
+                        <li>
+                          • Plantões de 24h permitidos com 36h de descanso
+                        </li>
+                        <li>
+                          • Máximo 60h semanais, mínimo 11h entre plantões
+                        </li>
+                        <li>• Máximo 2 plantões noturnos consecutivos</li>
+                      </ul>
+                    </div>
+                  )}
+
+                  {!isNursingMode && (
+                    <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
+                        <span className="text-sm font-medium text-blue-800">
+                          Modo Padrão Ativado
+                        </span>
+                      </div>
+                      <ul className="text-xs text-blue-700 space-y-1">
+                        <li>• Turnos de 6h: Manhã, Tarde, Noite, Madrugada</li>
+                        <li>• Máximo 48h semanais</li>
+                        <li>• Regras básicas de rotação</li>
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Configurações de Período */}
               {scaleMembers.length > 0 && (
                 <div className="border-t pt-4">
@@ -2294,6 +2823,263 @@ export default function FolgasCreatePage() {
                         ))}
                       </div>
                     </div>
+
+                    {/* Indicador de Integrantes Necessários */}
+                    {scaleGeneration.workingDays.length > 0 && (
+                      <div className="mt-4 p-4 border rounded-lg bg-gradient-to-r from-blue-50 to-green-50">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Users className="h-4 w-4 text-blue-600" />
+                          <span className="text-sm font-medium text-blue-800">
+                            Recomendações de Integrantes
+                          </span>
+                        </div>
+                        
+                        {(() => {
+                          // Calcular total de dias no período
+                          const startDate = new Date(scaleGeneration.startDate);
+                          const endDate = new Date(scaleGeneration.endDate);
+                          const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                          
+                          // Contar quantos dias da semana selecionados existem no período
+                          let workingDaysCount = 0;
+                          const currentDate = new Date(startDate);
+                          
+                          while (currentDate <= endDate) {
+                            const dayOfWeek = currentDate.getDay();
+                            const dayKey = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][dayOfWeek];
+                            
+                            if (scaleGeneration.workingDays.includes(dayKey)) {
+                              workingDaysCount++;
+                            }
+                            
+                            currentDate.setDate(currentDate.getDate() + 1);
+                          }
+                          
+                          // Cálculos baseados no modo
+                          const turnosPorDia = isNursingMode ? 2 : 4; // 2 turnos de 12h vs 4 turnos de 6h
+                          const totalTurnos = workingDaysCount * turnosPorDia;
+                          
+                          // Fórmulas de cálculo
+                          const minimo = Math.max(2, Math.ceil(totalTurnos / (isNursingMode ? 8 : 12))); // turnos máximos por pessoa
+                          const recomendado = Math.max(3, Math.ceil(workingDaysCount * (isNursingMode ? 1.4 : 1.0)));
+                          const ideal = Math.max(4, Math.ceil(workingDaysCount * (isNursingMode ? 2.0 : 1.5)));
+                          
+                          // Status baseado no número atual de integrantes
+                          const currentMembers = scaleMembers.filter(m => !m.apenasContabilizaFolgas).length;
+                          let status = "danger";
+                          let statusText = "🔴 Crítico";
+                          let statusDesc = "Violações certas";
+                          
+                          if (currentMembers >= ideal) {
+                            status = "success";
+                            statusText = "🟢 Excelente";
+                            statusDesc = "Zero violações";
+                          } else if (currentMembers >= recomendado) {
+                            status = "good";
+                            statusText = "🟡 Bom";
+                            statusDesc = "Poucas violações";
+                          } else if (currentMembers >= minimo) {
+                            status = "warning";
+                            statusText = "🟠 Limitado";
+                            statusDesc = "Violações frequentes";
+                          }
+                          
+                          // Definir violações específicas por categoria
+                          const violacoes = {
+                            minimo: isNursingMode ? [
+                              "• Intervalos de 0-8h entre turnos (mín: 11h)",
+                              "• Plantões de 24h+ consecutivos possíveis",
+                              "• Horas semanais 40-60h (próximo do limite)",
+                              "• 3+ plantões noturnos consecutivos",
+                              "• Violação da Lei 7.498/86 e COFEN 424/2012"
+                            ] : [
+                              "• Intervalos de 2-6h entre turnos (mín: 8h)",
+                              "• Turnos consecutivos no mesmo dia",
+                              "• Horas semanais 36-48h (próximo do limite)",
+                              "• Distribuição muito desigual"
+                            ],
+                            recomendado: isNursingMode ? [
+                              "• Intervalos ocasionais de 8-10h (mín: 11h)",
+                              "• Raros plantões noturnos consecutivos",
+                              "• Horas semanais controladas (24-36h)",
+                              "• Descanso adequado na maioria dos casos"
+                            ] : [
+                              "• Intervalos ocasionais de 6-7h (mín: 8h)",
+                              "• Turnos consecutivos raros",
+                              "• Horas semanais balanceadas (24-36h)",
+                              "• Distribuição quase equilibrada"
+                            ],
+                            ideal: [
+                              "• Todos os intervalos respeitados",
+                              "• Zero plantões consecutivos inadequados",
+                              "• Horas semanais ótimas (≤24h)",
+                              "• Distribuição perfeitamente equilibrada",
+                              "• Conformidade total com legislação"
+                            ]
+                          };
+                          
+                          return (
+                            <div className="space-y-3">
+                              <div className="grid grid-cols-3 gap-3 text-xs">
+                                <div className="p-2 bg-white rounded border-2 border-red-200">
+                                  <div className="text-center mb-2">
+                                    <div className="font-semibold text-red-700">Mínimo</div>
+                                    <div className="text-lg font-bold text-red-600">{minimo}</div>
+                                  </div>
+                                  <div className="text-red-700 text-[10px] space-y-0.5">
+                                    {violacoes.minimo.slice(0, 3).map((v, i) => (
+                                      <div key={i}>{v}</div>
+                                    ))}
+                                  </div>
+                                </div>
+                                <div className="p-2 bg-white rounded border-2 border-yellow-200">
+                                  <div className="text-center mb-2">
+                                    <div className="font-semibold text-yellow-700">Recomendado</div>
+                                    <div className="text-lg font-bold text-yellow-600">{recomendado}</div>
+                                  </div>
+                                  <div className="text-yellow-700 text-[10px] space-y-0.5">
+                                    {violacoes.recomendado.slice(0, 3).map((v, i) => (
+                                      <div key={i}>{v}</div>
+                                    ))}
+                                  </div>
+                                </div>
+                                <div className="p-2 bg-white rounded border-2 border-green-200">
+                                  <div className="text-center mb-2">
+                                    <div className="font-semibold text-green-700">Ideal</div>
+                                    <div className="text-lg font-bold text-green-600">{ideal}</div>
+                                  </div>
+                                  <div className="text-green-700 text-[10px] space-y-0.5">
+                                    {violacoes.ideal.slice(0, 3).map((v, i) => (
+                                      <div key={i}>{v}</div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              {/* Detalhes das Violações por Categoria */}
+                              <div className="space-y-2">
+                                <div className="text-xs font-medium text-gray-700 mb-1">Detalhes das Violações por Categoria:</div>
+                                
+                                {/* Violações do Mínimo */}
+                                <details className="bg-red-50 border border-red-200 rounded">
+                                  <summary className="cursor-pointer p-2 text-xs font-medium text-red-800 hover:bg-red-100">
+                                    🔴 Mínimo ({minimo} integrantes) - Violações Críticas
+                                  </summary>
+                                  <div className="p-2 pt-0 text-[10px] text-red-700 space-y-0.5">
+                                    {violacoes.minimo.map((v, i) => (
+                                      <div key={i}>{v}</div>
+                                    ))}
+                                  </div>
+                                </details>
+                                
+                                {/* Violações do Recomendado */}
+                                <details className="bg-yellow-50 border border-yellow-200 rounded">
+                                  <summary className="cursor-pointer p-2 text-xs font-medium text-yellow-800 hover:bg-yellow-100">
+                                    🟡 Recomendado ({recomendado} integrantes) - Violações Ocasionais
+                                  </summary>
+                                  <div className="p-2 pt-0 text-[10px] text-yellow-700 space-y-0.5">
+                                    {violacoes.recomendado.map((v, i) => (
+                                      <div key={i}>{v}</div>
+                                    ))}
+                                  </div>
+                                </details>
+                                
+                                {/* Situação Ideal */}
+                                <details className="bg-green-50 border border-green-200 rounded">
+                                  <summary className="cursor-pointer p-2 text-xs font-medium text-green-800 hover:bg-green-100">
+                                    🟢 Ideal ({ideal} integrantes) - Conformidade Total
+                                  </summary>
+                                  <div className="p-2 pt-0 text-[10px] text-green-700 space-y-0.5">
+                                    {violacoes.ideal.map((v, i) => (
+                                      <div key={i}>{v}</div>
+                                    ))}
+                                  </div>
+                                </details>
+                              </div>
+                              
+                              <div className="flex items-center justify-between p-2 bg-white rounded border">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-medium">Status Atual:</span>
+                                  <span className="text-sm font-semibold">{statusText}</span>
+                                  <span className="text-xs text-gray-600">({statusDesc})</span>
+                                </div>
+                                <div className="text-sm">
+                                  <span className="font-medium">{currentMembers}</span>
+                                  <span className="text-gray-500"> de {ideal} integrantes</span>
+                                </div>
+                              </div>
+                              
+                              {/* Violações Específicas do Status Atual */}
+                              {currentMembers > 0 && (
+                                <div className={`text-xs p-3 rounded border-2 ${
+                                  status === "success" ? "bg-green-50 border-green-200" :
+                                  status === "good" ? "bg-yellow-50 border-yellow-200" :
+                                  status === "warning" ? "bg-orange-50 border-orange-200" :
+                                  "bg-red-50 border-red-200"
+                                }`}>
+                                  <div className={`font-semibold mb-2 ${
+                                    status === "success" ? "text-green-800" :
+                                    status === "good" ? "text-yellow-800" :
+                                    status === "warning" ? "text-orange-800" :
+                                    "text-red-800"
+                                  }`}>
+                                    {statusText} - Violações Esperadas com {currentMembers} Integrantes:
+                                  </div>
+                                  <div className={`space-y-1 text-[11px] ${
+                                    status === "success" ? "text-green-700" :
+                                    status === "good" ? "text-yellow-700" :
+                                    status === "warning" ? "text-orange-700" :
+                                    "text-red-700"
+                                  }`}>
+                                    {(() => {
+                                      let currentViolations: string[] = [];
+                                      if (currentMembers >= ideal) {
+                                        currentViolations = violacoes.ideal;
+                                      } else if (currentMembers >= recomendado) {
+                                        currentViolations = violacoes.recomendado;
+                                      } else if (currentMembers >= minimo) {
+                                        currentViolations = violacoes.minimo;
+                                      } else {
+                                        currentViolations = [
+                                          ...violacoes.minimo,
+                                          "• Sobrecarga extrema dos integrantes",
+                                          "• Sistema pode não conseguir gerar escala completa"
+                                        ];
+                                      }
+                                      
+                                      return currentViolations.map((v, i) => (
+                                        <div key={i}>{v}</div>
+                                      ));
+                                    })()}
+                                  </div>
+                                </div>
+                              )}
+                              
+                              <div className="text-xs text-gray-600 space-y-1">
+                                <div className="flex justify-between">
+                                  <span>Período:</span>
+                                  <span className="font-medium">{totalDays} dias ({workingDaysCount} úteis)</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span>Total de turnos:</span>
+                                  <span className="font-medium">{totalTurnos} turnos</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span>Modo:</span>
+                                  <span className="font-medium">{isNursingMode ? "Enfermagem (12h)" : "Padrão (6h)"}</span>
+                                </div>
+                              </div>
+                              
+                              {isNursingMode && currentMembers < recomendado && (
+                                <div className="text-xs text-red-700 bg-red-50 p-2 rounded border border-red-200">
+                                  ⚠️ <strong>Aviso:</strong> Com poucos integrantes no modo enfermagem, violações da Lei 7.498/86 e COFEN 424/2012 são esperadas (intervalos &lt; 11h, plantões &gt; 24h consecutivos).
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -2493,18 +3279,43 @@ export default function FolgasCreatePage() {
                         <Button
                           onClick={generateSchedule}
                           className="w-full"
-                          disabled={scaleMembers.length < 2}
+                          disabled={scaleMembers.length < (isNursingMode ? 3 : 2)}
                         >
                           <Calculator className="h-4 w-4 mr-2" />
                           Gerar Escala de Plantões
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>
-                          Gera automaticamente a escala de plantões com
-                          distribuição de turnos baseada nos integrantes e
-                          turnos disponíveis
-                        </p>
+                        <div className="space-y-1">
+                          <p className="font-medium">
+                            Gerar Escala de Plantões{" "}
+                            {isNursingMode
+                              ? "(Modo Enfermagem)"
+                              : "(Modo Padrão)"}
+                          </p>
+                          <div className="text-xs text-yellow-700 bg-yellow-50 p-2 rounded mb-2">
+                            <p className="font-medium">Integrantes necessários:</p>
+                            <p>• Mínimo: {isNursingMode ? "3" : "2"} integrantes</p>
+                            <p>• Recomendado: {isNursingMode ? "6-8" : "4-6"} integrantes</p>
+                            {isNursingMode && (
+                              <p className="text-red-700 mt-1">⚠️ Com poucos integrantes, violações de intervalos são esperadas</p>
+                            )}
+                          </div>
+                          {isNursingMode ? (
+                            <ul className="text-xs space-y-1">
+                              <li>• Turnos de 12h e 24h</li>
+                              <li>• Máximo 60h semanais</li>
+                              <li>• Validação de intervalos de descanso</li>
+                              <li>• Máximo 2 plantões noturnos consecutivos</li>
+                            </ul>
+                          ) : (
+                            <ul className="text-xs space-y-1">
+                              <li>• Turnos de 6h</li>
+                              <li>• Máximo 48h semanais</li>
+                              <li>• Rotação básica de turnos</li>
+                            </ul>
+                          )}
+                        </div>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
@@ -2527,110 +3338,11 @@ export default function FolgasCreatePage() {
 
                   {/* Preview da Escala Gerada */}
                   {generatedSchedule.length > 0 && (
-                    <div className="space-y-4">
-                      <h4 className="font-medium flex items-center gap-2">
-                        <Clock className="h-4 w-4" />
-                        Preview da Escala de Plantões
-                      </h4>
-
-                      {/* Mostrar apenas os primeiros 7 dias */}
-                      <div className="max-h-96 overflow-y-auto border rounded-lg">
-                        {generatedSchedule.slice(0, 7).map((day, index) => (
-                          <div
-                            key={index}
-                            className={`p-4 border-b last:border-b-0 ${
-                              index % 2 === 0 ? "bg-gray-50" : "bg-white"
-                            }`}
-                          >
-                            <div className="flex items-center justify-between mb-3">
-                              <h5 className="font-medium text-lg">
-                                {format(day.date, "EEEE, dd/MM/yyyy", {
-                                  locale: ptBR,
-                                })}
-                              </h5>
-                              <Badge variant="outline">
-                                {day.shifts?.length || 0} turno(s)
-                              </Badge>
-                            </div>
-
-                            {day.shifts && day.shifts.length > 0 ? (
-                              <div className="grid gap-3">
-                                {day.shifts.map((shift, shiftIndex) => (
-                                  <div
-                                    key={shiftIndex}
-                                    className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-200"
-                                  >
-                                    <div className="flex items-center gap-3">
-                                      <div className="text-center">
-                                        <div className="font-semibold text-blue-800">
-                                          {shift.turnoNome}
-                                        </div>
-                                        <div className="text-sm text-blue-600">
-                                          {shift.horaInicio} - {shift.horaFim}
-                                        </div>
-                                      </div>
-                                      <div className="border-l border-blue-300 pl-3">
-                                        <div className="font-medium">
-                                          {shift.integrante.nome}
-                                        </div>
-                                        <div className="text-sm text-muted-foreground">
-                                          {shift.especialização}
-                                        </div>
-                                      </div>
-                                    </div>
-                                    <Badge
-                                      variant="secondary"
-                                      className="bg-blue-100 text-blue-700"
-                                    >
-                                      {tiposTurnos.find(
-                                        (t) => t.nome === shift.turnoNome
-                                      )?.duracao_horas || 6}
-                                      h
-                                    </Badge>
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <div className="text-center py-6 text-muted-foreground">
-                                <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                                <p>Nenhum turno programado para este dia</p>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-
-                      {generatedSchedule.length > 7 && (
-                        <p className="text-sm text-muted-foreground text-center">
-                          Mostrando os primeiros 7 dias de{" "}
-                          {generatedSchedule.length} dias gerados. Visualize a
-                          escala completa após salvar.
-                        </p>
-                      )}
-
-                      {/* Resumo da escala */}
-                      <div className="grid grid-cols-2 gap-4 p-4 bg-blue-50 rounded-lg">
-                        <div className="text-center">
-                          <div className="text-2xl font-bold text-blue-600">
-                            {generatedSchedule.length}
-                          </div>
-                          <div className="text-sm text-blue-700">
-                            Dias com plantões
-                          </div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-2xl font-bold text-blue-600">
-                            {generatedSchedule.reduce(
-                              (total, day) => total + (day.shifts?.length || 0),
-                              0
-                            )}
-                          </div>
-                          <div className="text-sm text-blue-700">
-                            Total de turnos
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                    <PlantaoPreview
+                      schedule={generatedSchedule}
+                      isNursingMode={isNursingMode}
+                      maxDaysToShow={7}
+                    />
                   )}
                   <div className="flex gap-2 justify-end">
                     {generatedSchedule.length > 0 && (
