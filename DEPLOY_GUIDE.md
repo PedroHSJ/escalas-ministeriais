@@ -204,6 +204,19 @@ git push origin v1.0.1
 # ✅ GitHub Actions dispara deploy automaticamente
 ```
 
+## Versão simplificada
+
+``bash
+# Versão patch (1.0.0 -> 1.0.1)
+npm version patch && git push origin main --follow-tags
+
+# Versão minor (1.0.0 -> 1.1.0)  
+npm version minor && git push origin main --follow-tags
+
+# Versão major (1.0.0 -> 2.0.0)
+npm version major && git push origin main --follow-tags
+```
+
 ### **Para Hotfixes**
 
 ```bash
