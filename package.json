@@ -12,7 +12,12 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:ci": "jest --ci --coverage --watchAll=false",
-    "version:generate": "node scripts/generate-version.js"
+    "version:generate": "node scripts/generate-version.js",
+    "release:notes": "node scripts/generate-release-notes.js",
+    "release": "node scripts/auto-release.js",
+    "release:patch": "node scripts/auto-release.js patch",
+    "release:minor": "node scripts/auto-release.js minor",
+    "release:major": "node scripts/auto-release.js major"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.0.1",

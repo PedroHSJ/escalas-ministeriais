@@ -2,7 +2,10 @@
 
 ## 📋 **Visão Geral**
 
-Este guia implementa a estratégia oficial do Vercel para **deploy baseado em tags/releases** em vez de commits automáticos. Seguindo a [documentação oficial do Vercel](https://vercel.com/guides/can-you-deploy-based-on-tags-releases-on-vercel), vamos configurar GitHub Actions + Vercel CLI para controle total dos deploys.
+Este guia implementa a estratégia oficial do Vercel para **deploy baseado em tags/releases** em vez de commits automáticos. Seguindo a [documentação oficial do Vercel](https://vercel.com/guides/can-you-deploy-based-on-tags-releases-on-vercel), vamos configurar GitHub Actions + Verc------
+
+## ⚙️ **10. Configuração de Variáveis de Ambiente**
+## 🎯 **9. Configurações Avançadas do npm version**CLI para controle total dos deploys.
 
 ---
 
@@ -168,7 +171,62 @@ jobs:
 
 ---
 
-## 🎯 **6. Fluxo de Trabalho Recomendado**
+## 🚀 **6. Deploy Automático**
+
+O deploy é 100% automático quando você faz push de uma tag:
+
+1. **GitHub Actions** detecta a nova tag
+2. **Vercel** faz build e deploy automaticamente  
+3. **GitHub Release** é criada com release notes
+4. **Ambiente** fica disponível em segundos
+
+⚠️ **Importante**: Apenas tags fazem deploy. Commits normais **não** fazem deploy.
+
+---
+
+## 🤖 **7. Automação de Release Notes**
+
+### **7.1 Scripts Automatizados**
+
+O projeto inclui scripts para automatizar a criação de release notes:
+
+```powershell
+# Gerar release notes automaticamente baseado em commits
+npm run release:notes patch  # ou minor, major
+
+# Processo completo: gerar notes + versionar + push
+npm run release:patch        # Para correções
+npm run release:minor        # Para novas funcionalidades  
+npm run release:major        # Para breaking changes
+```
+
+### **7.2 Como Funciona**
+
+1. **Script analisa commits** desde a última tag
+2. **Categoriza automaticamente** por tipo:
+   - `feat:` → Novas Funcionalidades
+   - `fix:` → Correções de Bugs  
+   - `improve:` → Melhorias
+   - `chore:` → Alterações Técnicas
+
+3. **Gera template** com placeholders para edição
+4. **Aguarda edição manual** das descrições
+5. **Executa versionamento** e push automático
+
+### **7.3 GitHub Actions**
+
+O workflow `.github/workflows/auto-release-notes.yml` automaticamente:
+
+- **Detecta** quando uma tag é criada
+- **Procura** por arquivo `RELEASE_NOTES_vX.X.X.md`
+- **Cria GitHub Release** com o conteúdo
+- **Anexa** arquivo de release notes
+
+---
+
+## 📦 **8. Versionamento e Release**
+
+### **8.1 Fluxo de Trabalho Recomendado**
 
 ### **Para Desenvolvimento**
 
@@ -182,14 +240,28 @@ git push origin dev
 # ❌ NÃO dispara deploy (auto-deploy desativado)
 ```
 
-### **Para Produção (Release) - Método Automático (Recomendado)**
+### **8.2 Para Produção (Release) - Método Automático (Recomendado)**
 
 ```bash
 # 1. Finalize o desenvolvimento
 git checkout master
 git merge dev
 
-# 2. Use npm version (cria tag automaticamente)
+# 2. Use scripts automatizados
+npm run release:patch   # Para correções de bugs
+npm run release:minor   # Para novas funcionalidades
+npm run release:major   # Para breaking changes
+
+# ✅ Script faz tudo: gera release notes + versiona + push + deploy
+```
+
+### **8.3 Para Produção (Release) - Método Manual**
+
+```bash
+# 1. Criar release notes manualmente
+# Editar RELEASE_NOTES_v1.0.1.md
+
+# 2. Versionar manualmente
 npm version patch  # 1.0.0 -> 1.0.1 + tag v1.0.1
 # ou npm version minor   # 1.0.0 -> 1.1.0 + tag v1.1.0
 # ou npm version major   # 1.0.0 -> 2.0.0 + tag v2.0.0
@@ -573,7 +645,7 @@ git push origin v1.0.2
 
 ---
 
-## 🆘 **7. Solução de Problemas**
+## 🆘 **11. Solução de Problemas**
 
 ### **Deploy não dispara**
 
@@ -618,7 +690,7 @@ vercel build --prod
 
 ---
 
-## ✅ **8. Verificação Final**
+## ✅ **12. Verificação Final**
 
 ### **Checklist de Configuração**
 

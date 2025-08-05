@@ -1,0 +1,98 @@
+name: Auto Release Notes
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Get tag version
+        id: tag
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          echo "version=${TAG}" >> $GITHUB_OUTPUT
+          echo "version_number=${TAG#v}" >> $GITHUB_OUTPUT
+
+      - name: Check if release notes exist
+        id: check_notes
+        run: |
+          if [ -f "RELEASE_NOTES_${{ steps.tag.outputs.version }}.md" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Read release notes
+        id: notes
+        if: steps.check_notes.outputs.exists == 'true'
+        run: |
+          NOTES=$(cat RELEASE_NOTES_${{ steps.tag.outputs.version }}.md)
+          echo "content<<EOF" >> $GITHUB_OUTPUT
+          echo "$NOTES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Generate release notes from commits
+        id: generate_notes
+        if: steps.check_notes.outputs.exists == 'false'
+        run: |
+          # Pegar commits desde a última tag
+          LAST_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -z "$LAST_TAG" ]; then
+            COMMITS=$(git log --oneline --no-merges)
+          else
+            COMMITS=$(git log ${LAST_TAG}..HEAD --oneline --no-merges)
+          fi
+          
+          # Criar release notes básicas
+          NOTES="# 🎉 Release ${{ steps.tag.outputs.version }}
+
+**Data de Lançamento**: $(date +'%d de %B de %Y')  
+**Versão**: ${{ steps.tag.outputs.version_number }}  
+
+## 📝 **Mudanças nesta versão**
+
+$COMMITS
+
+---
+
+*Release notes geradas automaticamente.*"
+          
+          echo "content<<EOF" >> $GITHUB_OUTPUT
+          echo "$NOTES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.tag.outputs.version }}
+          name: "Sistema de Escalas Ministeriais ${{ steps.tag.outputs.version }}"
+          body: |
+            ${{ steps.check_notes.outputs.exists == 'true' && steps.notes.outputs.content || steps.generate_notes.outputs.content }}
+          draft: false
+          prerelease: false
+          files: |
+            RELEASE_NOTES_${{ steps.tag.outputs.version }}.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Notify success
+        run: |
+          echo "✅ Release ${{ steps.tag.outputs.version }} criada com sucesso!"
+          echo "🔗 Acesse: https://github.com/${{ github.repository }}/releases/tag/${{ steps.tag.outputs.version }}"
