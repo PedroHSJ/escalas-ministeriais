@@ -182,39 +182,77 @@ git push origin dev
 # ❌ NÃO dispara deploy (auto-deploy desativado)
 ```
 
-### **Para Produção (Release)**
+### **Para Produção (Release) - Método Automático (Recomendado)**
 
 ```bash
 # 1. Finalize o desenvolvimento
-git checkout main
+git checkout master
 git merge dev
 
-# 2. Atualize a versão
-npm version patch  # 1.0.0 -> 1.0.1
-# ou npm version minor   # 1.0.0 -> 1.1.0  
-# ou npm version major   # 1.0.0 -> 2.0.0
+# 2. Use npm version (cria tag automaticamente)
+npm version patch  # 1.0.0 -> 1.0.1 + tag v1.0.1
+# ou npm version minor   # 1.0.0 -> 1.1.0 + tag v1.1.0
+# ou npm version major   # 1.0.0 -> 2.0.0 + tag v2.0.0
 
-# 3. A versão já cria uma tag automaticamente, mas você pode criar manual:
+# 3. Push commit + tag em uma linha
+git push origin master --follow-tags
+
+# ✅ GitHub Actions dispara deploy automaticamente
+```
+
+### **Para Produção (Release) - Método Manual (Alternativo)**
+
+```bash
+# 1. Finalize o desenvolvimento
+git checkout master
+git merge dev
+
+# 2. Atualize package.json manualmente
+# Edite package.json: "version": "1.0.1"
+
+# 3. Commit e tag manual com mensagem personalizada
+git add package.json
+git commit -m "v1.0.1"
 git tag -a v1.0.1 -m "Release v1.0.1 - Correções e melhorias"
 
-# 4. Envie tudo
-git push origin main
+# 4. Push separado
+git push origin master
 git push origin v1.0.1
 
 # ✅ GitHub Actions dispara deploy automaticamente
 ```
 
-## Versão simplificada
+### **⚡ Versão Simplificada (Uma Linha)**
 
-``bash
+```bash
 # Versão patch (1.0.0 -> 1.0.1)
-npm version patch && git push origin main --follow-tags
+npm version patch && git push origin master --follow-tags
 
 # Versão minor (1.0.0 -> 1.1.0)  
-npm version minor && git push origin main --follow-tags
+npm version minor && git push origin master --follow-tags
 
 # Versão major (1.0.0 -> 2.0.0)
-npm version major && git push origin main --follow-tags
+npm version major && git push origin master --follow-tags
+```
+
+### **📝 O que `npm version` faz automaticamente:**
+
+1. ✅ **Atualiza** `package.json`: `1.0.0` → `1.0.1`
+2. ✅ **Faz commit** automático: `"1.0.1"`
+3. ✅ **Cria tag** automática: `v1.0.1`
+4. ✅ **Pronto para push**: `git push origin master --follow-tags`
+
+### **🔍 Verificar se funcionou:**
+
+```bash
+# Ver último commit (deve ter mensagem "1.0.1")
+git log --oneline -1
+
+# Ver tags locais
+git tag
+
+# Ver se tag foi enviada para o GitHub
+git ls-remote --tags origin
 ```
 
 ### **Para Hotfixes**
@@ -250,9 +288,53 @@ git push origin hotfix
 - Release notes automáticas no GitHub
 - Rollback fácil para qualquer tag
 
+### ✅ **Vantagens do `npm version`**
+- **Mais rápido**: Uma linha vs múltiplos comandos
+- **Sem erros**: Não esquece nenhum passo
+- **Consistente**: Sempre cria tag com padrão `v1.0.1`
+- **Automático**: Commit + tag + atualização em uma ação
+
 ---
 
-## 🔄 **8. Comandos Úteis**
+## 🎯 **8. Configurações Avançadas do npm version**
+
+### **Personalizar mensagem do commit:**
+
+```bash
+# Configurar mensagem customizada (opcional)
+npm config set message "Release v%s"
+
+# Agora npm version patch criará commit: "Release v1.0.1"
+```
+
+### **Configurações úteis:**
+
+```bash
+# Ver configurações atuais
+npm config list
+
+# Verificar se tag automática está ativa (deve ser true)
+npm config get git-tag-version
+
+# Desativar tag automática (NÃO recomendado para nosso caso)
+npm config set git-tag-version false
+```
+
+### **Reverter versão se necessário:**
+
+```bash
+# Reverter commit e tag local (antes do push)
+git reset --hard HEAD~1
+git tag -d v1.0.1
+
+# Se já fez push, reverter no remoto (cuidado!)
+git push origin :refs/tags/v1.0.1  # Remove tag
+git push origin master --force     # Remove commit (perigoso!)
+```
+
+---
+
+## 🔄 **9. Comandos Úteis**
 
 ### **Verificar Status**
 
@@ -296,7 +378,7 @@ git push origin v1.0.2
 
 ---
 
-## 🆘 **9. Solução de Problemas**
+## 🆘 **10. Solução de Problemas**
 
 ### **Deploy não dispara**
 
@@ -341,7 +423,7 @@ vercel build --prod
 
 ---
 
-## ✅ **10. Verificação Final**
+## ✅ **11. Verificação Final**
 
 ### **Checklist de Configuração**
 

@@ -151,12 +151,6 @@ export function VersionDisplay({
               </div>
             )}
           </div>
-
-          <div className="pt-2 border-t">
-            <p className="text-xs text-muted-foreground">
-              Sistema de Escalas Ministeriais
-            </p>
-          </div>
         </div>
       </PopoverContent>
     </Popover>
