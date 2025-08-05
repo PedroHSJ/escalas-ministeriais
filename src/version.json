@@ -1,0 +1,14 @@
+{
+  "version": "1.0.0",
+  "buildDate": "2025-08-05T18:46:02.877Z",
+  "environment": "development",
+  "gitTag": null,
+  "gitCommit": null,
+  "gitCommitShort": null,
+  "gitBranch": null,
+  "vercelUrl": null,
+  "vercelEnv": null,
+  "vercelRegion": null,
+  "nodeVersion": "v22.14.0",
+  "buildTime": 1754419562878
+}
