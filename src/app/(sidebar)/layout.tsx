@@ -1,6 +1,7 @@
 import "@/app/globals.css";
 import { AppSidebar } from "@/components/sidebar/app-sidebar";
 import { ModeToggle } from "@/components/toggle/dark-mode";
+import { VersionDisplay } from "@/components/ui/version-display";
 import { Separator } from "@/components/ui/separator";
 import {
   SidebarInset,
@@ -42,7 +43,10 @@ export default function RootLayout({
                       className="mr-2 data-[orientation=vertical]:h-4"
                     />
                   </div>
-                  {/* <ModeToggle /> */}
+                  <div className="flex items-center gap-2 px-4">
+                    <VersionDisplay variant="badge" showDetails={true} />
+                    {/* <ModeToggle /> */}
+                  </div>
                 </header>
                 <Suspense
                   fallback={
