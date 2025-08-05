@@ -1,16 +1,18 @@
 {
   "name": "escalas-ministeriais",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
+    "prebuild": "node scripts/generate-version.js",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "test:ci": "jest --ci --coverage --watchAll=false"
+    "test:ci": "jest --ci --coverage --watchAll=false",
+    "version:generate": "node scripts/generate-version.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.0.1",
