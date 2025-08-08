@@ -45,7 +45,7 @@ export default function RootLayout({
                   </div>
                   <div className="flex items-center gap-2 px-4">
                     <VersionDisplay variant="badge" showDetails={true} />
-                    {/* <ModeToggle /> */}
+                    <ModeToggle />
                   </div>
                 </header>
                 <Suspense
