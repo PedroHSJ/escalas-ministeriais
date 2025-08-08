@@ -45,6 +45,7 @@ import { EscalaFolgaType } from "@/types/escala-folgas";
 import FilterBar from "@/components/filters/FilterBar";
 import Pagination from "@/components/pagination/Pagination";
 import { NavigationButton } from "@/components/ui/navigation-button";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Organization {
   id: string;
@@ -73,7 +74,7 @@ interface EditDialog {
 }
 
 export default function FolgasListPage() {
-  const [userId, setUserId] = useState("");
+  const { userId } = useAuth();
   const [scales, setScales] = useState<EscalaFolgaType[]>([]);
   const [filteredScales, setFilteredScales] = useState<EscalaFolgaType[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
@@ -108,17 +109,6 @@ export default function FolgasListPage() {
   const [showTrash, setShowTrash] = useState(false);
   const [deletedScales, setDeletedScales] = useState<EscalaFolgaType[]>([]);
   const [loadingTrash, setLoadingTrash] = useState(false);
-
-  const fetchSession = async () => {
-    if (process.env.NODE_ENV === "development") {
-      setUserId("d58c420f-7db1-42e9-b040-e1d038ef79af");
-    } else {
-      const { data } = await supabase.auth.getSession();
-      if (data.session?.user) {
-        setUserId(data.session.user.id);
-      }
-    }
-  };
 
   const fetchOrganizations = async () => {
     if (!userId) return;
@@ -279,10 +269,6 @@ export default function FolgasListPage() {
 
     setLoading(false);
   };
-
-  useEffect(() => {
-    fetchSession();
-  }, []);
 
   useEffect(() => {
     if (userId) {
@@ -703,12 +689,10 @@ export default function FolgasListPage() {
               <Archive className="mr-2 h-4 w-4" />
               {showTrash ? "Ver Ativas" : "Lixeira"}
             </Button>
-            <Link href="/folgas/create">
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                Criar
-              </Button>
-            </Link>
+            <NavigationButton href="/folgas/create" variant="default" size="sm">
+              <Plus className="mr-2 h-4 w-4" />
+              Criar
+            </NavigationButton>
           </div>
         </div>
 

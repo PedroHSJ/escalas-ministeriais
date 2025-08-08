@@ -247,14 +247,14 @@ export default function FolgasViewPage() {
       )
     ).sort();
 
-    // Obter todas as especializações únicas
+    // Obter todas as especializações únicas e ordená-las
     const specializations = Array.from(
       new Set(
         assignments
           .filter((a) => a.especializacao?.nome)
           .map((a) => a.especializacao!.nome)
       )
-    );
+    ).sort(); // Ordenar alfabeticamente
 
     // Criar matriz de dados: integrante x data
     const calendarMatrix: Record<
@@ -284,10 +284,11 @@ export default function FolgasViewPage() {
 
         dates.forEach((date) => {
           // Determinar se é escala preta ou vermelha
-          const dateObj = new Date(date);
+          // Criar data de forma segura para evitar problemas de fuso horário
+          const dateObj = new Date(date + "T12:00:00"); // Adicionar horário para evitar UTC offset
           const dayOfWeek = dateObj.getDay(); // 0 = domingo, 6 = sábado
-          const isEscalaVermelha = dayOfWeek === 0 || dayOfWeek === 6;
-          const isEscalaPreta = !isEscalaVermelha;
+          const isEscalaVermelha = dayOfWeek === 0 || dayOfWeek === 6; // Sábado e Domingo
+          const isEscalaPreta = !isEscalaVermelha; // Segunda a Sexta
 
           // Buscar atribuição de trabalho para este membro nesta data
           const workAssignment = assignments.find(
@@ -338,7 +339,7 @@ export default function FolgasViewPage() {
               codigo: codigoFolga,
               tipo: "folga",
               color: "#fecaca", // vermelho claro para todas as folgas
-              textColor: isEscalaPreta ? "#000000" : "#991b1b", // texto preto para escala preta, vermelho escuro para escala vermelha
+              textColor: isEscalaPreta ? "#000000" : "#fff", // texto preto para escala preta, vermelho escuro para escala vermelha
             };
           }
           // Se não há nem trabalho nem folga, não adiciona entrada para este dia
@@ -346,11 +347,41 @@ export default function FolgasViewPage() {
       }
     });
 
+    // Ordenar membros por especialização e depois alfabeticamente
+    const sortedMembers = participations
+      .map((p) => p.integrante?.nome)
+      .filter((name): name is string => Boolean(name)) // Type guard para garantir que são strings
+      .sort((a, b) => {
+        // Encontrar especialização de cada membro
+        const getSpecializacao = (memberName: string) => {
+          const assignment = assignments.find(
+            (assign) =>
+              assign.integrante?.nome === memberName &&
+              assign.tipo_atribuicao === "trabalho"
+          );
+          return (
+            assignment?.especializacao?.nome ||
+            assignment?.observacao ||
+            "Sem Especialização"
+          );
+        };
+
+        const specA = getSpecializacao(a);
+        const specB = getSpecializacao(b);
+
+        // Primeiro ordenar por especialização
+        if (specA !== specB) {
+          return specA.localeCompare(specB);
+        }
+        // Depois ordenar alfabeticamente dentro da mesma especialização
+        return a.localeCompare(b);
+      });
+
     return {
       dates,
       specializations,
       matrix: calendarMatrix,
-      members: participations.map((p) => p.integrante?.nome).filter(Boolean),
+      members: sortedMembers,
     };
   };
 
@@ -500,7 +531,7 @@ export default function FolgasViewPage() {
     // Criar linhas da tabela organizadas por data
     const dates = filteredDates;
     dates.forEach((date) => {
-      const dateObj = new Date(date);
+      const dateObj = new Date(date + "T12:00:00"); // Adicionar horário para evitar UTC offset
       const formattedDate = format(dateObj, "dd/MM", { locale: ptBR });
       const dayOfWeek = format(dateObj, "EEE", { locale: ptBR }).toUpperCase();
 
@@ -741,12 +772,12 @@ export default function FolgasViewPage() {
           <div class="scale-title">ESCALA DE SERVIÇO DO SETOR DE ${scale.departamento?.nome?.toUpperCase()} REFERENTE AO PERÍODO DE</div>
           <div class="period">${
             filteredDates.length > 0
-              ? format(new Date(filteredDates[0]), "dd", {
+              ? format(new Date(filteredDates[0] + "T12:00:00"), "dd", {
                   locale: ptBR,
                 }) +
                 " A " +
                 format(
-                  new Date(filteredDates[filteredDates.length - 1]),
+                  new Date(filteredDates[filteredDates.length - 1] + "T12:00:00"),
                   "dd 'de' MMMM 'de' yyyy",
                   { locale: ptBR }
                 ).toUpperCase()

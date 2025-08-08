@@ -182,7 +182,7 @@ export default function FolgasCreatePage() {
           .map((member) => member.especializacaoNome)
           .filter((name): name is string => Boolean(name))
       )
-    );
+    ).sort();
 
     // Criar matriz de dados: integrante x data
     const calendarMatrix: Record<
@@ -258,16 +258,38 @@ export default function FolgasCreatePage() {
             especializacao: member.especializacaoNome,
             tipo: "folga",
             color: "#fecaca", // Vermelho claro para folga
+            textColor: isEscalaPreta ? "#000000" : "#fff", // texto preto para escala preta, vermelho escuro para escala vermelha
           };
         }
       });
-    });
+    });    
+
+    // Ordenar membros por especialização e depois alfabeticamente
+    const sortedMembers = scaleMembers
+      .map((m) => m.nome)
+      .sort((a, b) => {
+        // Encontrar especialização de cada membro
+        const getSpecializacao = (memberName: string) => {
+          const member = scaleMembers.find((m) => m.nome === memberName);
+          return member?.especializacaoNome || "Sem Especialização";
+        };
+
+        const specA = getSpecializacao(a);
+        const specB = getSpecializacao(b);
+
+        // Primeiro ordenar por especialização
+        if (specA !== specB) {
+          return specA.localeCompare(specB);
+        }
+        // Depois ordenar alfabeticamente dentro da mesma especialização
+        return a.localeCompare(b);
+      });
 
     return {
       dates,
       specializations,
       matrix: calendarMatrix,
-      members: scaleMembers.map((m) => m.nome),
+      members: sortedMembers,
     };
   };
 
@@ -2506,7 +2528,18 @@ export default function FolgasCreatePage() {
                   {/* Lista de Integrantes */}
                   <div className="space-y-3">
                     <h4 className="font-medium">Integrantes Participantes</h4>
-                    {scaleMembers.map((member) => (
+                    {scaleMembers
+                      .sort((a, b) => {
+                        // Primeiro ordenar por especialização
+                        const specA = a.especializacaoNome || "Sem Especialização";
+                        const specB = b.especializacaoNome || "Sem Especialização";
+                        if (specA !== specB) {
+                          return specA.localeCompare(specB);
+                        }
+                        // Depois ordenar alfabeticamente dentro da mesma especialização
+                        return a.nome.localeCompare(b.nome);
+                      })
+                      .map((member) => (
                       <div
                         key={member.id}
                         className={`flex justify-between items-center p-3 rounded ${
@@ -2988,7 +3021,18 @@ export default function FolgasCreatePage() {
             <div className="print-summary" style={{ marginTop: "20px" }}>
               <div className="print-summary-title">Participantes e Folgas</div>
               <div className="print-summary-grid">
-                {scaleMembers.map((member, index) => (
+                {scaleMembers
+                  .sort((a, b) => {
+                    // Primeiro ordenar por especialização
+                    const specA = a.especializacaoNome || "Sem Especialização";
+                    const specB = b.especializacaoNome || "Sem Especialização";
+                    if (specA !== specB) {
+                      return specA.localeCompare(specB);
+                    }
+                    // Depois ordenar alfabeticamente dentro da mesma especialização
+                    return a.nome.localeCompare(b.nome);
+                  })
+                  .map((member, index) => (
                   <div key={member.id} style={{ marginBottom: "5px" }}>
                     <strong>{member.nome}</strong> - Posição:{" "}
                     {member.posicaoAtual} | Folgas iniciais:{" "}
