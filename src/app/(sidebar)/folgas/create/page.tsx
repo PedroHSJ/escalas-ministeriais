@@ -654,6 +654,7 @@ export default function FolgasCreatePage() {
       apenasContabilizaFolgas: apenasContabilizaFolgas,
       tipoParticipacao: "ambas", // Por padrão, participa de ambas as escalas
       trabalho24h: false, // Por padrão, não é trabalho de 24h
+      doisDiasConsecutivosVermelha: false, // Por padrão, não trabalhará dois dias consecutivos de escala vermelha
     };
 
     setScaleMembers([...scaleMembers, newMember]);
@@ -795,6 +796,7 @@ export default function FolgasCreatePage() {
         apenasContabilizaFolgas: false,
         tipoParticipacao: "ambas",
         trabalho24h: false,
+        doisDiasConsecutivosVermelha: false,
       };
 
       newMembers.push(newMember);
@@ -811,6 +813,26 @@ export default function FolgasCreatePage() {
         addedCount !== 1 ? "s" : ""
       } à escala`
     );
+  };
+
+  const toggleAllDoisDiasConsecutivosVermelha = () => {
+    const activeMembers = scaleMembers.filter(
+      (m) => !m.apenasContabilizaFolgas
+    );
+    const allMarked = activeMembers.every((m) => m.doisDiasConsecutivosVermelha);
+
+    setScaleMembers(
+      scaleMembers.map((m) => {
+        if (!m.apenasContabilizaFolgas) {
+          return {
+            ...m,
+            doisDiasConsecutivosVermelha: !allMarked,
+          };
+        }
+        return m;
+      })
+    );
+    setGeneratedSchedule([]); // Limpar escala quando alterar configuração de dois dias consecutivos
   };
 
   const removeAllMembersFromScale = () => {
@@ -915,6 +937,21 @@ export default function FolgasCreatePage() {
       })
     );
     setGeneratedSchedule([]); // Limpar escala quando alterar configuração de 24h
+  };
+
+  const updateMemberDoisDiasConsecutivosVermelha = (memberId: string, doisDiasConsecutivosVermelha: boolean) => {
+    setScaleMembers(
+      scaleMembers.map((m) => {
+        if (m.id === memberId) {
+          return {
+            ...m,
+            doisDiasConsecutivosVermelha,
+          };
+        }
+        return m;
+      })
+    );
+    setGeneratedSchedule([]); // Limpar escala quando alterar configuração de dois dias consecutivos
   };
 
   const updateMemberFeriasLicenca = (
@@ -1114,20 +1151,14 @@ export default function FolgasCreatePage() {
 
           const numberOfPeople = availableMembers.length;
 
-          // Aplicar regras especiais de feriado da escala "preta e vermelha"
-          let numberOfOnLeave: number;
+          // REGRA: Apenas 1 pessoa por especialização deve trabalhar por dia
+          // Isso garante que duas pessoas com a mesma especialização não sejam escaladas juntas
+          const numberOfWorking = 1; // Sempre 1 pessoa trabalhando por especialização
+          const numberOfOnLeave = numberOfPeople - numberOfWorking; // O resto fica de folga
 
-          if (isHoliday || isSpecialPeriod) {
-            // Em feriados, mais pessoas ficam de folga (escala reduzida)
-            // Máximo de 1 pessoa trabalhando por especialização em feriados
-            numberOfOnLeave = Math.max(
-              numberOfPeople - 1,
-              Math.floor(numberOfPeople * 0.8)
-            );
-          } else {
-            // Lógica normal: folgas = pessoas - 1 por especialização
-            numberOfOnLeave = numberOfPeople - 1;
-          }
+          // Aplicar regras especiais de feriado da escala "preta e vermelha"
+          // Em feriados, manter a regra de 1 pessoa por especialização
+          // (não alteramos essa regra mesmo em feriados para manter a separação por especialização)
 
           // Ordenar membros considerando a escala específica (preta ou vermelha)
           const sortedMembers = [...availableMembers].sort((a, b) => {
@@ -1140,7 +1171,7 @@ export default function FolgasCreatePage() {
               : b.folgasAtualVermelha;
 
             if (folgasA !== folgasB) {
-              return folgasA - folgasB; // Menor número de folgas primeiro
+              return folgasB - folgasA; // Maior número de folgas primeiro (mais descansado trabalha)
             }
             return a.posicaoAtual - b.posicaoAtual;
           });
@@ -1161,28 +1192,118 @@ export default function FolgasCreatePage() {
             });
           }
 
-          // Separar membros que podem trabalhar dos que devem ficar de folga por trabalho 24h anterior
+          // Verificar membros que trabalharam dois dias consecutivos na escala vermelha e não podem trabalhar na preta
+          const membersWhoWorked2ConsecutiveRed = new Set<string>();
+          if (isEscalaPreta && previousDayEntry) {
+            // Se hoje é escala preta, verificar se ontem foi domingo (final da escala vermelha)
+            const previousDayOfWeek = previousDay.getDay();
+            if (previousDayOfWeek === 0) { // Se ontem foi domingo
+              // Verificar se houve um sábado antes do domingo
+              const previousSaturday = new Date(previousDay);
+              previousSaturday.setDate(previousSaturday.getDate() - 1);
+              
+              const saturdayEntry = schedule.find(
+                (entry) => entry.date.toDateString() === previousSaturday.toDateString()
+              );
+              
+              if (saturdayEntry) {
+                // Membros que trabalharam tanto sábado quanto domingo e estão marcados para dois dias consecutivos
+                const saturdayWorkers = new Set(saturdayEntry.working.map(w => w.id));
+                const sundayWorkers = previousDayEntry.working;
+                
+                sundayWorkers.forEach((member) => {
+                  if (member.doisDiasConsecutivosVermelha && saturdayWorkers.has(member.id)) {
+                    membersWhoWorked2ConsecutiveRed.add(member.id);
+                  }
+                });
+              }
+            }
+          }
+
+          // Separar membros que podem trabalhar dos que devem ficar de folga por restrições
           const canWorkMembers: any[] = [];
           const must24hLeaveMembers: any[] = [];
+          const mustConsecutiveRedLeaveMembers: any[] = [];
 
           sortedMembers.forEach((member) => {
             if (membersWho24hYesterday.has(member.id)) {
               must24hLeaveMembers.push(member);
+            } else if (membersWhoWorked2ConsecutiveRed.has(member.id)) {
+              mustConsecutiveRedLeaveMembers.push(member);
             } else {
               canWorkMembers.push(member);
             }
           });
 
+          // LÓGICA ESPECIAL: Dois dias consecutivos na escala vermelha
+          let priorityWorkingMembers: any[] = [];
+          
+          if (isEscalaVermelha) {
+            // Se é sábado ou domingo, verificar membros marcados para dois dias consecutivos
+            const membersForConsecutiveRed = sortedMembers.filter(member => 
+              member.doisDiasConsecutivosVermelha && !membersWho24hYesterday.has(member.id)
+            );
+
+            if (membersForConsecutiveRed.length > 0) {
+              // Verificar se é sábado (day 6) ou domingo (day 0)
+              const dayOfWeekNumber = currentDate.getDay();
+              
+              if (dayOfWeekNumber === 6) {
+                // É sábado - selecionar quem tem MAIS folgas entre os marcados para dois dias consecutivos
+                // Ordenar por folgas da escala vermelha (decrescente) - quem tem mais folgas primeiro
+                const sortedConsecutiveMembers = membersForConsecutiveRed.sort((a, b) => {
+                  const folgasA = a.folgasAtualVermelha;
+                  const folgasB = b.folgasAtualVermelha;
+                  
+                  if (folgasA !== folgasB) {
+                    return folgasB - folgasA; // Ordem decrescente - mais folgas primeiro
+                  }
+                  return a.posicaoAtual - b.posicaoAtual; // Em caso de empate, usar posição
+                });
+                
+                priorityWorkingMembers = [sortedConsecutiveMembers[0]]; // Apenas o mais descansado
+              } else if (dayOfWeekNumber === 0) {
+                // É domingo - verificar quem trabalhou no sábado anterior
+                const previousSaturday = new Date(currentDate);
+                previousSaturday.setDate(previousSaturday.getDate() - 1);
+                
+                const saturdayEntry = schedule.find(
+                  (entry) => entry.date.toDateString() === previousSaturday.toDateString()
+                );
+                
+                if (saturdayEntry) {
+                  // Membros que trabalharam no sábado e estão marcados para dois dias consecutivos
+                  const saturdayWorkers = saturdayEntry.working.map(w => w.id);
+                  const continuityMembers = membersForConsecutiveRed.filter(member => 
+                    saturdayWorkers.includes(member.id)
+                  );
+                  
+                  // Se há alguém que trabalhou sábado e está marcado para dois dias consecutivos, 
+                  // essa pessoa deve continuar no domingo
+                  if (continuityMembers.length > 0) {
+                    priorityWorkingMembers = [continuityMembers[0]]; // Garantir continuidade
+                  }
+                }
+              }
+            }
+          }
+
           // GARANTIR que sempre tenha pelo menos 1 pessoa trabalhando
-          // Se todos os membros disponíveis trabalharam 24h ontem, forçar o trabalho do menos "descansado"
+          // Se todos os membros disponíveis têm restrições, forçar o trabalho do menos "descansado"
           let finalCanWorkMembers = canWorkMembers;
           let finalMust24hLeaveMembers = must24hLeaveMembers;
+          let finalMustConsecutiveRedLeaveMembers = mustConsecutiveRedLeaveMembers;
           let forcedWorkAfter24h = false;
 
-          if (canWorkMembers.length === 0 && must24hLeaveMembers.length > 0) {
-            // Situação crítica: todos trabalharam 24h ontem
+          if (canWorkMembers.length === 0 && (must24hLeaveMembers.length > 0 || mustConsecutiveRedLeaveMembers.length > 0)) {
+            // Situação crítica: todos têm alguma restrição
+            // Priorizar quem trabalhou 24h sobre quem trabalhou dois dias consecutivos vermelha
+            // (24h é restrição mais forte que dois dias consecutivos)
+            
+            const allRestrictedMembers = [...must24hLeaveMembers, ...mustConsecutiveRedLeaveMembers];
+            
             // Escolher o que tem mais folgas para trabalhar (mais descansado)
-            const mostRestedMember = must24hLeaveMembers.reduce(
+            const mostRestedMember = allRestrictedMembers.reduce(
               (prev, current) => {
                 const prevFolgas = isEscalaPreta
                   ? prev.folgasAtualPreta
@@ -1195,9 +1316,18 @@ export default function FolgasCreatePage() {
             );
 
             finalCanWorkMembers = [mostRestedMember];
-            finalMust24hLeaveMembers = must24hLeaveMembers.filter(
-              (m) => m.id !== mostRestedMember.id
-            );
+            
+            // Remover o membro selecionado das listas de restrição
+            if (must24hLeaveMembers.find(m => m.id === mostRestedMember.id)) {
+              finalMust24hLeaveMembers = must24hLeaveMembers.filter(
+                (m) => m.id !== mostRestedMember.id
+              );
+            } else {
+              finalMustConsecutiveRedLeaveMembers = mustConsecutiveRedLeaveMembers.filter(
+                (m) => m.id !== mostRestedMember.id
+              );
+            }
+            
             forcedWorkAfter24h = true;
 
             // Marcar o membro como trabalhando em situação excepcional
@@ -1211,21 +1341,42 @@ export default function FolgasCreatePage() {
           );
           const targetOnLeave = Math.min(numberOfOnLeave, maxPossibleOnLeave);
 
-          // Dividir os membros que podem trabalhar
-          const canWorkOnLeave = finalCanWorkMembers.slice(0, targetOnLeave);
-          const canWorkWorking = finalCanWorkMembers.slice(targetOnLeave);
+          // Aplicar prioridade para membros de dois dias consecutivos na escala vermelha
+          let canWorkOnLeave: any[] = [];
+          let canWorkWorking: any[] = [];
 
-          // Garantir que pelo menos 1 pessoa trabalhe por especialização
-          if (canWorkWorking.length === 0 && finalCanWorkMembers.length > 0) {
-            // Mover o último da folga para trabalho
-            const memberToWork = canWorkOnLeave.pop();
-            if (memberToWork) {
-              canWorkWorking.push(memberToWork);
+          if (priorityWorkingMembers.length > 0 && isEscalaVermelha) {
+            // Para membros marcados para dois dias consecutivos na escala vermelha
+            // Já foi selecionado o melhor candidato baseado em folgas
+            canWorkWorking = [priorityWorkingMembers[0]];
+            
+            // Todos os outros ficam de folga
+            const remainingMembers = finalCanWorkMembers.filter(
+              member => member.id !== priorityWorkingMembers[0].id
+            );
+            canWorkOnLeave = remainingMembers;
+          } else {
+            // Lógica normal: selecionar apenas 1 pessoa para trabalhar (a primeira da lista ordenada)
+            // A primeira pessoa é quem tem mais folgas (mais descansado) e deve trabalhar
+            if (finalCanWorkMembers.length > 0) {
+              canWorkWorking = [finalCanWorkMembers[0]];
+              canWorkOnLeave = finalCanWorkMembers.slice(1);
             }
           }
 
-          // Combinar folgas: membros normais + membros em restrição 24h
-          const specOnLeave = [...canWorkOnLeave, ...finalMust24hLeaveMembers];
+          // Garantir que exatamente 1 pessoa trabalhe por especialização
+          if (canWorkWorking.length === 0 && finalCanWorkMembers.length > 0) {
+            // Se nenhuma pessoa foi selecionada para trabalhar, selecionar a primeira disponível
+            canWorkWorking = [finalCanWorkMembers[0]];
+            canWorkOnLeave = finalCanWorkMembers.slice(1);
+          } else if (canWorkWorking.length > 1) {
+            // Se mais de 1 pessoa foi selecionada, manter apenas a primeira
+            canWorkOnLeave.push(...canWorkWorking.slice(1));
+            canWorkWorking = [canWorkWorking[0]];
+          }
+
+          // Combinar folgas: membros normais + membros com restrições (24h + dois dias consecutivos vermelha)
+          const specOnLeave = [...canWorkOnLeave, ...finalMust24hLeaveMembers, ...finalMustConsecutiveRedLeaveMembers];
           const specWorking = canWorkWorking;
 
           // Adicionar aos arrays do dia
@@ -1329,7 +1480,7 @@ export default function FolgasCreatePage() {
 
     setGeneratedSchedule(schedule);
     toast.success("Escala gerada com sucesso!", {
-      description: `${schedule.length} dias de trabalho programados`,
+      description: `${schedule.length} dias de trabalho programados. Regras aplicadas: apenas 1 pessoa por especialização trabalha por dia. Quem trabalha 2 dias consecutivos na vermelha descansa na segunda-feira.`,
     });
   };
 
@@ -2530,6 +2681,42 @@ export default function FolgasCreatePage() {
                       </TooltipProvider>
                     )}
 
+                    {/* Botão Marcar Todos como Dois Dias Consecutivos Escala Vermelha */}
+                    {scaleMembers.filter((m) => !m.apenasContabilizaFolgas)
+                      .length > 0 && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={toggleAllDoisDiasConsecutivosVermelha}
+                              className="text-red-600 border-red-200 hover:bg-red-50"
+                            >
+                              <div className="h-4 w-4 mr-2 rounded bg-red-600 text-white text-xs flex items-center justify-center font-bold">
+                                2D
+                              </div>
+                              {scaleMembers
+                                .filter((m) => !m.apenasContabilizaFolgas)
+                                .every((m) => m.doisDiasConsecutivosVermelha)
+                                ? "Desmarcar"
+                                : "Marcar"}{" "}
+                              Todos 2 Dias Vermelha
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>
+                              {scaleMembers
+                                .filter((m) => !m.apenasContabilizaFolgas)
+                                .every((m) => m.doisDiasConsecutivosVermelha)
+                                ? "Desmarcar todos os integrantes para trabalho de dois dias consecutivos na escala vermelha"
+                                : "Marcar todos os integrantes ativos para trabalharem dois dias consecutivos na escala vermelha (sábado e domingo)"}
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -2608,6 +2795,14 @@ export default function FolgasCreatePage() {
                                 className="bg-orange-100 text-orange-700 border-orange-300"
                               >
                                 24h
+                              </Badge>
+                            )}
+                            {member.doisDiasConsecutivosVermelha && (
+                              <Badge
+                                variant="secondary"
+                                className="bg-red-100 text-red-700 border-red-300"
+                              >
+                                2D Vermelha
                               </Badge>
                             )}
                           </div>
@@ -2705,6 +2900,36 @@ export default function FolgasCreatePage() {
                                   </SelectItem>
                                 </SelectContent>
                               </Select>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Checkbox
+                                      id={`doisDiasVermelha-${member.id}`}
+                                      checked={member.doisDiasConsecutivosVermelha || false}
+                                      onCheckedChange={(checked) =>
+                                        updateMemberDoisDiasConsecutivosVermelha(
+                                          member.id,
+                                          checked === true
+                                        )
+                                      }
+                                    />
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>
+                                      Se marcado, este integrante irá trabalhar dois dias consecutivos 
+                                      da escala vermelha (sábado e domingo)
+                                    </p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                              <label
+                                htmlFor={`doisDiasVermelha-${member.id}`}
+                                className="text-sm cursor-pointer"
+                              >
+                                2 Dias Consecutivos Vermelha
+                              </label>
                             </div>
                             <div className="flex items-center gap-2">
                               <TooltipProvider>

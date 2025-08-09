@@ -74,6 +74,7 @@ export interface EscalaFolgaMember {
   tipoParticipacao: TipoParticipacaoEscala; // Define se participa da escala preta, vermelha ou ambas
   trabalho24h?: boolean; // Se verdadeiro, não pode ser escalado no dia seguinte
   excecaoTrabalho24h?: boolean; // Marcação temporária para trabalho forçado após 24h
+  doisDiasConsecutivosVermelha?: boolean; // Se verdadeiro, irá trabalhar dois dias consecutivos de escala vermelha
 }
 
 export interface EscalaFolgaAssignment {
