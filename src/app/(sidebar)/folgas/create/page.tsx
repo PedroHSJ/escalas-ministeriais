@@ -262,7 +262,7 @@ export default function FolgasCreatePage() {
           };
         }
       });
-    });    
+    });
 
     // Ordenar membros por especialização e depois alfabeticamente
     const sortedMembers = scaleMembers
@@ -294,14 +294,25 @@ export default function FolgasCreatePage() {
   };
 
   // Função para obter cores das especializações
+  // const getSpecializationColor = (index: number) => {
+  //   const colors = [
+  //     "#e3f2fd", // Azul claro
+  //     "#e8f5e8", // Verde claro
+  //     "#fff8e1", // Amarelo claro
+  //     "#fce4ec", // Rosa claro
+  //     "#f3e5f5", // Roxo claro
+  //     "#fff3e0", // Laranja claro
+  //   ];
+  //   return colors[(index - 1) % colors.length] || "#e5e7eb";
+  // };
   const getSpecializationColor = (index: number) => {
     const colors = [
-      "#e3f2fd", // Azul claro
-      "#e8f5e8", // Verde claro
-      "#fff8e1", // Amarelo claro
-      "#fce4ec", // Rosa claro
-      "#f3e5f5", // Roxo claro
-      "#fff3e0", // Laranja claro
+      "#ddd6fe", // roxo claro
+      "#bfdbfe", // azul claro
+      "#bbf7d0", // verde claro
+      "#fed7aa", // laranja claro
+      "#fde68a", // amarelo claro
+      "#f9a8d4", // rosa claro
     ];
     return colors[(index - 1) % colors.length] || "#e5e7eb";
   };
@@ -2528,18 +2539,7 @@ export default function FolgasCreatePage() {
                   {/* Lista de Integrantes */}
                   <div className="space-y-3">
                     <h4 className="font-medium">Integrantes Participantes</h4>
-                    {scaleMembers
-                      .sort((a, b) => {
-                        // Primeiro ordenar por especialização
-                        const specA = a.especializacaoNome || "Sem Especialização";
-                        const specB = b.especializacaoNome || "Sem Especialização";
-                        if (specA !== specB) {
-                          return specA.localeCompare(specB);
-                        }
-                        // Depois ordenar alfabeticamente dentro da mesma especialização
-                        return a.nome.localeCompare(b.nome);
-                      })
-                      .map((member) => (
+                    {scaleMembers.map((member) => (
                       <div
                         key={member.id}
                         className={`flex justify-between items-center p-3 rounded ${
@@ -3021,18 +3021,7 @@ export default function FolgasCreatePage() {
             <div className="print-summary" style={{ marginTop: "20px" }}>
               <div className="print-summary-title">Participantes e Folgas</div>
               <div className="print-summary-grid">
-                {scaleMembers
-                  .sort((a, b) => {
-                    // Primeiro ordenar por especialização
-                    const specA = a.especializacaoNome || "Sem Especialização";
-                    const specB = b.especializacaoNome || "Sem Especialização";
-                    if (specA !== specB) {
-                      return specA.localeCompare(specB);
-                    }
-                    // Depois ordenar alfabeticamente dentro da mesma especialização
-                    return a.nome.localeCompare(b.nome);
-                  })
-                  .map((member, index) => (
+                {scaleMembers.map((member, index) => (
                   <div key={member.id} style={{ marginBottom: "5px" }}>
                     <strong>{member.nome}</strong> - Posição:{" "}
                     {member.posicaoAtual} | Folgas iniciais:{" "}
