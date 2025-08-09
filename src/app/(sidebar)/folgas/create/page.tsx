@@ -560,11 +560,22 @@ export default function FolgasCreatePage() {
       setSelectedScaleToImport("");
       setPreviewImportData([]);
 
+      // Contar quantos são apenas para contabilizar folgas
+      const membersOnLeaveCount = importedMembers.filter(
+        (m) => m.apenasContabilizaFolgas
+      ).length;
+      const activeMembersCount = importedMembers.length - membersOnLeaveCount;
+
+      let description =
+        "Os valores de folgas foram preservados da escala anterior.";
+      if (membersOnLeaveCount > 0) {
+        description += ` Incluindo ${membersOnLeaveCount} integrante(s) em férias/licença.`;
+      }
+
       toast.success(
         `${importedMembers.length} integrante(s) importado(s) com sucesso!`,
         {
-          description:
-            "Os valores de folgas foram preservados da escala anterior.",
+          description: description,
         }
       );
     } catch (error) {
@@ -904,6 +915,24 @@ export default function FolgasCreatePage() {
       })
     );
     setGeneratedSchedule([]); // Limpar escala quando alterar configuração de 24h
+  };
+
+  const updateMemberFeriasLicenca = (
+    memberId: string,
+    apenasContabilizaFolgas: boolean
+  ) => {
+    setScaleMembers(
+      scaleMembers.map((m) => {
+        if (m.id === memberId) {
+          return {
+            ...m,
+            apenasContabilizaFolgas,
+          };
+        }
+        return m;
+      })
+    );
+    setGeneratedSchedule([]); // Limpar escala quando alterar status de férias/licença
   };
 
   const toggleAllTrabalho24h = () => {
@@ -2178,12 +2207,12 @@ export default function FolgasCreatePage() {
                       {/* Select de Especialização - Aparece após selecionar integrante */}
                       {selectedMemberToAdd && (
                         <div className="space-y-2">
-                          <label className="text-sm font-medium">
+                          {/* <label className="text-sm font-medium">
                             Configurações para {selectedMemberToAdd.nome}
-                          </label>
+                          </label> */}
 
                           {/* Checkbox para apenas contabilizar folgas */}
-                          <div className="flex items-center space-x-2 p-3rounded">
+                          {/* <div className="flex items-center space-x-2 p-3rounded">
                             <Checkbox
                               id="apenasContabilizaFolgas"
                               checked={memberOnlyForLeaveCount}
@@ -2204,7 +2233,7 @@ export default function FolgasCreatePage() {
                               trabalho, apenas acumulará folgas todos os dias
                               (ideal para quem está de férias ou licença).
                             </p>
-                          )}
+                          )} */}
 
                           <div className="space-y-2">
                             {!memberOnlyForLeaveCount && (
@@ -2706,6 +2735,40 @@ export default function FolgasCreatePage() {
                                 className="text-sm cursor-pointer"
                               >
                                 Trabalho 24h
+                              </label>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Checkbox
+                                      id={`ferias-${member.id}`}
+                                      checked={
+                                        member.apenasContabilizaFolgas || false
+                                      }
+                                      onCheckedChange={(checked) =>
+                                        updateMemberFeriasLicenca(
+                                          member.id,
+                                          checked === true
+                                        )
+                                      }
+                                    />
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>
+                                      Se marcado, este integrante apenas
+                                      contabilizará folgas (não será escalado
+                                      para trabalhar - ideal para
+                                      férias/licença)
+                                    </p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                              <label
+                                htmlFor={`ferias-${member.id}`}
+                                className="text-sm cursor-pointer"
+                              >
+                                Férias/Licença
                               </label>
                             </div>
                             <div className="text-sm text-muted-foreground">
@@ -3275,7 +3338,7 @@ export default function FolgasCreatePage() {
                           </span>
                           {item.apenasContabilizaFolgas && (
                             <Badge variant="secondary" className="text-xs">
-                              Só folgas
+                              Férias/Licença
                             </Badge>
                           )}
                           {item.jaAdicionado && (
