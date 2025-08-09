@@ -1414,6 +1414,10 @@ export default function FolgasCreatePage() {
               previousDayOfWeek === 0 || previousDayOfWeek === 6;
             const wasEscalaPreta = !wasEscalaVermelha;
 
+            // 🔍 LOG: Mostrar que tipo de escala foi ontem
+            const previousEscalaType = wasEscalaVermelha ? "VERMELHA" : "PRETA";
+            console.log(`📋 ONTEM foi escala ${previousEscalaType}`);
+
             previousDayEntry.working.forEach((member) => {
               // Se trabalhou 24h, não pode trabalhar hoje
               if (member.trabalho24h) {
@@ -1426,6 +1430,15 @@ export default function FolgasCreatePage() {
                 (isEscalaVermelha && wasEscalaVermelha)
               ) {
                 membersWhoWorkedYesterday.add(member.id);
+                // 🔍 LOG: Mostrar quem trabalhou na mesma escala ontem
+                console.log(
+                  `🔄 ${member.nome} trabalhou ontem na escala ${previousEscalaType} (mesma de hoje)`
+                );
+              } else {
+                // 🔍 LOG: Mostrar quem trabalhou em escala diferente ontem
+                console.log(
+                  `🔀 ${member.nome} trabalhou ontem na escala ${previousEscalaType} (diferente de hoje)`
+                );
               }
             });
           }
@@ -1454,6 +1467,37 @@ export default function FolgasCreatePage() {
               return folgasB - folgasA; // Maior número de folgas primeiro (mais descansado trabalha)
             }
             return a.posicaoAtual - b.posicaoAtual;
+          });
+
+          // 🔍 LOG: Mostrar informações dos membros para verificação da regra
+          const dateStr = currentDate.toLocaleDateString("pt-BR");
+          const escalaType = isEscalaPreta ? "PRETA" : "VERMELHA";
+
+          console.log(
+            `\n📅 Data: ${dateStr} - Escala ${escalaType} - Especialização: ${specName}`
+          );
+          console.log("👥 Membros disponíveis (ordenados por folgas):");
+
+          sortedMembers.forEach((member, index) => {
+            const folgas = isEscalaPreta
+              ? member.folgasAtualPreta
+              : member.folgasAtualVermelha;
+            const workedYesterday = membersWhoWorkedYesterday.has(member.id)
+              ? "⚠️ Trabalhou ontem"
+              : "✅ Não trabalhou ontem";
+
+            // 🔍 LOG DETALHADO: Mostrar folgas em ambas as escalas para entender melhor
+            const folgasPreta = member.folgasAtualPreta;
+            const folgasVermelha = member.folgasAtualVermelha;
+            const worked24h = membersWho24hYesterday.has(member.id)
+              ? " (24h ontem)"
+              : "";
+
+            console.log(
+              `   ${index + 1}. ${
+                member.nome
+              } - ${folgas} folgas ${escalaType.toLowerCase()} (Preta: ${folgasPreta}, Vermelha: ${folgasVermelha}) - ${workedYesterday}${worked24h}`
+            );
           });
 
           // Verificar membros que trabalharam dois dias consecutivos na escala vermelha e não podem trabalhar na preta
@@ -1499,10 +1543,20 @@ export default function FolgasCreatePage() {
           sortedMembers.forEach((member) => {
             if (membersWho24hYesterday.has(member.id)) {
               must24hLeaveMembers.push(member);
+              // 🔍 LOG: Mostrar restrições 24h
+              console.log(
+                `🚫 ${member.nome} trabalhou 24h ontem - DEVE ficar de folga hoje`
+              );
             } else if (membersWhoWorked2ConsecutiveRed.has(member.id)) {
               mustConsecutiveRedLeaveMembers.push(member);
+              // 🔍 LOG: Mostrar restrições dois dias consecutivos
+              console.log(
+                `🚫 ${member.nome} trabalhou dois dias consecutivos vermelha - DEVE ficar de folga hoje`
+              );
             } else {
               canWorkMembers.push(member);
+              // 🔍 LOG: Mostrar quem pode trabalhar
+              console.log(`✅ ${member.nome} PODE trabalhar hoje`);
             }
           });
 
@@ -1602,6 +1656,16 @@ export default function FolgasCreatePage() {
               }
             );
 
+            // 🔍 LOG: Situação crítica - todos têm restrições
+            console.log(`⚠️ SITUAÇÃO CRÍTICA: Todos têm restrições!`);
+            console.log(
+              `💪 FORÇADO A TRABALHAR: ${mostRestedMember.nome} (${
+                isEscalaPreta
+                  ? mostRestedMember.folgasAtualPreta
+                  : mostRestedMember.folgasAtualVermelha
+              } folgas ${escalaType.toLowerCase()})`
+            );
+
             finalCanWorkMembers = [mostRestedMember];
 
             // Remover o membro selecionado das listas de restrição
@@ -1638,6 +1702,13 @@ export default function FolgasCreatePage() {
             // Já foi selecionado o melhor candidato baseado em folgas
             canWorkWorking = [priorityWorkingMembers[0]];
 
+            // 🔍 LOG: Escalação especial para dois dias consecutivos na vermelha
+            const selectedMember = priorityWorkingMembers[0];
+            const folgas = selectedMember.folgasAtualVermelha;
+            console.log(
+              `🔴 DOIS DIAS CONSECUTIVOS VERMELHA: ${selectedMember.nome} (${folgas} folgas vermelha)`
+            );
+
             // Todos os outros ficam de folga
             const remainingMembers = finalCanWorkMembers.filter(
               (member) => member.id !== priorityWorkingMembers[0].id
@@ -1649,6 +1720,32 @@ export default function FolgasCreatePage() {
             if (finalCanWorkMembers.length > 0) {
               canWorkWorking = [finalCanWorkMembers[0]];
               canWorkOnLeave = finalCanWorkMembers.slice(1);
+
+              // 🔍 LOG: Mostrar quem foi escalado para trabalhar
+              const selectedMember = finalCanWorkMembers[0];
+              const folgas = isEscalaPreta
+                ? selectedMember.folgasAtualPreta
+                : selectedMember.folgasAtualVermelha;
+              console.log(
+                `🎯 ESCALADO PARA TRABALHAR: ${
+                  selectedMember.nome
+                } (${folgas} folgas ${escalaType.toLowerCase()})`
+              );
+
+              // Mostrar quem ficou de folga
+              if (canWorkOnLeave.length > 0) {
+                console.log("😴 De folga:");
+                canWorkOnLeave.forEach((member) => {
+                  const folgasMember = isEscalaPreta
+                    ? member.folgasAtualPreta
+                    : member.folgasAtualVermelha;
+                  console.log(
+                    `   - ${
+                      member.nome
+                    } (${folgasMember} folgas ${escalaType.toLowerCase()})`
+                  );
+                });
+              }
             }
           }
 
@@ -1694,6 +1791,59 @@ export default function FolgasCreatePage() {
               } else {
                 originalMember.folgasAtualVermelha += folgasIncrement;
               }
+
+              // 🔍 LOG: Mostrar atualização de folgas para quem ficou de folga
+              console.log(
+                `📈 ${
+                  member.nome
+                } ganhou ${folgasIncrement} folga(s) ${escalaType.toLowerCase()} (Total agora: ${
+                  isEscalaPreta
+                    ? originalMember.folgasAtualPreta
+                    : originalMember.folgasAtualVermelha
+                })`
+              );
+            }
+          });
+
+          // 🔍 LOG: IMPORTANTE - Quem trabalhou DEVE zerar as folgas da escala correspondente
+          console.log(
+            `🔧 ZERANDO FOLGAS para ${specWorking.length} membro(s) que trabalhou(ram):`
+          );
+          specWorking.forEach((member) => {
+            console.log(`🔧 Processando reset de folgas para: ${member.nome}`);
+            const originalMember = membersBySpecialization
+              .get(specName)!
+              .find((m) => m.id === member.id);
+            if (originalMember) {
+              console.log(
+                `🔧 Membro encontrado no mapa! Folgas ANTES do reset: Preta=${originalMember.folgasAtualPreta}, Vermelha=${originalMember.folgasAtualVermelha}`
+              );
+
+              // ZERAR as folgas da escala que trabalhou
+              if (isEscalaPreta) {
+                console.log(
+                  `🔄 ${member.nome} trabalhou na escala PRETA - ZERANDO folgas preta (era ${originalMember.folgasAtualPreta})`
+                );
+                originalMember.folgasAtualPreta = 0;
+              } else {
+                console.log(
+                  `🔄 ${member.nome} trabalhou na escala VERMELHA - ZERANDO folgas vermelha (era ${originalMember.folgasAtualVermelha})`
+                );
+                originalMember.folgasAtualVermelha = 0;
+              }
+
+              // Também zerar contador geral se for compatibilidade
+              originalMember.folgasAtuais =
+                originalMember.folgasAtualPreta +
+                originalMember.folgasAtualVermelha;
+              console.log(
+                `📊 ${member.nome} - Folgas DEPOIS do reset: Preta=${originalMember.folgasAtualPreta}, Vermelha=${originalMember.folgasAtualVermelha}, Total=${originalMember.folgasAtuais}`
+              );
+              console.log(`✅ Reset completado para ${member.nome}`);
+            } else {
+              console.log(
+                `❌ ERRO: Membro ${member.nome} NÃO foi encontrado no mapa de especializações!`
+              );
             }
           });
         }
