@@ -117,7 +117,7 @@ export default function CalendarTable({
                   1+
                 </div>
                 <span className="text-xs whitespace-nowrap">
-                  Folgas em Finais de Semana (texto vermelho escuro)
+                  Folgas em Finais de Semana e feriados (texto branco)
                 </span>
               </div>
             </div>

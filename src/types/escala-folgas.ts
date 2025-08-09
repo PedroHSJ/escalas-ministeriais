@@ -75,6 +75,9 @@ export interface EscalaFolgaMember {
   trabalho24h?: boolean; // Se verdadeiro, não pode ser escalado no dia seguinte
   excecaoTrabalho24h?: boolean; // Marcação temporária para trabalho forçado após 24h
   doisDiasConsecutivosVermelha?: boolean; // Se verdadeiro, irá trabalhar dois dias consecutivos de escala vermelha
+  // Contadores de dias consecutivos de folga (preservados durante importação)
+  consecutiveDaysOffPreta?: number; // Dias consecutivos de folga na escala preta
+  consecutiveDaysOffVermelha?: number; // Dias consecutivos de folga na escala vermelha
 }
 
 export interface EscalaFolgaAssignment {
