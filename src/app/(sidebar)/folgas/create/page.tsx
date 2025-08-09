@@ -160,6 +160,11 @@ export default function FolgasCreatePage() {
     }>
   >([]);
 
+  // Estado para armazenar informações de feriados pré-processadas
+  const [holidayInfo, setHolidayInfo] = useState<
+    Record<string, { isHoliday: boolean; isSpecialPeriod: boolean; info: any }>
+  >({});
+
   // Função para converter escala gerada para formato do CalendarTable
   const getCalendarDataFromGenerated = () => {
     if (generatedSchedule.length === 0) return null;
@@ -1201,7 +1206,7 @@ export default function FolgasCreatePage() {
     setGeneratedSchedule([]);
   };
 
-  const generateSchedule = () => {
+  const generateSchedule = async () => {
     if (scaleMembers.length < 2) {
       toast.error("É necessário pelo menos 2 integrantes para gerar a escala");
       return;
@@ -1269,7 +1274,34 @@ export default function FolgasCreatePage() {
     const endDate = new Date(scaleGeneration.endDate);
 
     // Criar instância do gerenciador de feriados
-    const feriadoManager = new FeriadoManager();
+    const feriadoManager = new FeriadoManager(
+      selectedOrganization?.id || "",
+      userId
+    );
+
+    // Pré-processar informações de feriados para todas as datas do período
+    const holidayInfoMap: Record<
+      string,
+      { isHoliday: boolean; isSpecialPeriod: boolean; info: any }
+    > = {};
+    let processDate = new Date(scaleGeneration.startDate);
+    while (processDate <= endDate) {
+      const dateKey = processDate.toISOString().split("T")[0];
+      const isHoliday = await feriadoManager.isHoliday(processDate);
+      const isSpecialPeriod = feriadoManager.isSpecialPeriod(processDate);
+      const info = await feriadoManager.getHolidayInfo(processDate);
+
+      holidayInfoMap[dateKey] = {
+        isHoliday,
+        isSpecialPeriod,
+        info,
+      };
+
+      processDate = addDays(processDate, 1);
+    }
+
+    // Armazenar no estado para uso na renderização
+    setHolidayInfo(holidayInfoMap);
 
     while (currentDate <= endDate) {
       const dayOfWeek = currentDate.getDay();
@@ -1288,17 +1320,23 @@ export default function FolgasCreatePage() {
         const dayOnLeave: EscalaFolgaMember[] = [];
         const assignments: Record<string, EscalaFolgaMember[]> = {};
 
-        // Verificar se é feriado nacional ou local
-        const isHoliday = feriadoManager.isHoliday(currentDate);
-        const isSpecialPeriod = feriadoManager.isSpecialPeriod(currentDate);
+        // Obter informações de feriados pré-processadas
+        const dateKey = currentDate.toISOString().split("T")[0];
+        const dayHolidayInfo = holidayInfoMap[dateKey] || {
+          isHoliday: false,
+          isSpecialPeriod: false,
+          info: null,
+        };
+        const { isHoliday, isSpecialPeriod } = dayHolidayInfo;
 
         // Calcular incremento de folgas uma única vez
         const folgasIncrement = isHoliday || isSpecialPeriod ? 1.5 : 1;
 
-        // Determinar se é escala preta (dias de semana) ou vermelha (finais de semana)
-        const dayOfWeekNumber = currentDate.getDay(); // 0 = domingo, 6 = sábado
-        const isEscalaVermelha = dayOfWeekNumber === 0 || dayOfWeekNumber === 6; // Final de semana
-        const isEscalaPreta = !isEscalaVermelha; // Dias de semana
+        // Determinar se é escala vermelha (finais de semana + feriados)
+        const isEscalaVermelha = await feriadoManager.isEscalaVermelha(
+          currentDate
+        );
+        const isEscalaPreta = !isEscalaVermelha;
 
         // Para cada especialização, aplicar a lógica de folgas independentemente
         for (const [
@@ -3387,7 +3425,7 @@ export default function FolgasCreatePage() {
 
         {/* Feriados Personalizados */}
         <FeriadosPersonalizados
-          feriadoManager={new FeriadoManager()}
+          feriadoManager={new FeriadoManager(selectedOrganization?.id, userId)}
           onFeriadoChange={() => {
             // Se há escala gerada, sugerir regeneração
             if (generatedSchedule.length > 0) {
@@ -3461,12 +3499,17 @@ export default function FolgasCreatePage() {
               </thead>
               <tbody>
                 {generatedSchedule.map((day, index) => {
-                  const feriadoManager = new FeriadoManager();
-                  const isHoliday = feriadoManager.isHoliday(day.date);
-                  const isSpecialPeriod = feriadoManager.isSpecialPeriod(
-                    day.date
-                  );
-                  const holidayInfo = feriadoManager.getHolidayInfo(day.date);
+                  const dateKey = day.date.toISOString().split("T")[0];
+                  const dayHolidayInfo = holidayInfo[dateKey] || {
+                    isHoliday: false,
+                    isSpecialPeriod: false,
+                    info: null,
+                  };
+                  const {
+                    isHoliday,
+                    isSpecialPeriod,
+                    info: holidayInfoData,
+                  } = dayHolidayInfo;
 
                   return (
                     <tr
@@ -3487,11 +3530,11 @@ export default function FolgasCreatePage() {
                             locale: ptBR,
                           }).toUpperCase()}
                         </small>
-                        {isHoliday && holidayInfo && (
+                        {isHoliday && holidayInfoData && (
                           <>
                             <br />
                             <small className="text-red-500 font-medium">
-                              🎄 {holidayInfo.nome}
+                              🎄 {holidayInfoData.nome}
                             </small>
                           </>
                         )}

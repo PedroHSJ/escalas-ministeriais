@@ -58,12 +58,22 @@ export default function FeriadosPersonalizados({
 
   // Carregar feriados personalizados do ano selecionado
   useEffect(() => {
-    const feriados = feriadoManager.getFeriadosPersonalizados(anoSelecionado);
-    setFeriadosPersonalizados(feriados);
+    const carregarFeriados = async () => {
+      try {
+        const feriados = await feriadoManager.getFeriadosPersonalizados(
+          anoSelecionado
+        );
+        setFeriadosPersonalizados(feriados);
+      } catch (error) {
+        console.error("Erro ao carregar feriados:", error);
+        toast.error("Erro ao carregar feriados personalizados");
+      }
+    };
+    carregarFeriados();
   }, [anoSelecionado, feriadoManager]);
 
   // Adicionar novo feriado
-  const adicionarFeriado = () => {
+  const adicionarFeriado = async () => {
     const erros = FeriadoManager.validarFeriado(novoFeriado);
 
     if (erros.length > 0) {
@@ -74,11 +84,11 @@ export default function FeriadosPersonalizados({
     }
 
     try {
-      feriadoManager.addFeriadoPersonalizado(novoFeriado as Feriado);
+      await feriadoManager.addFeriadoPersonalizado(novoFeriado as Feriado);
 
       // Atualizar lista
       const feriadosAtualizados =
-        feriadoManager.getFeriadosPersonalizados(anoSelecionado);
+        await feriadoManager.getFeriadosPersonalizados(anoSelecionado);
       setFeriadosPersonalizados(feriadosAtualizados);
 
       // Resetar formulário
@@ -100,16 +110,20 @@ export default function FeriadosPersonalizados({
   };
 
   // Remover feriado
-  const removerFeriado = (data: string) => {
-    const sucesso = feriadoManager.removeFeriadoPersonalizado(data);
+  const removerFeriado = async (data: string) => {
+    try {
+      const sucesso = await feriadoManager.removeFeriadoPersonalizado(data);
 
-    if (sucesso) {
-      const feriadosAtualizados =
-        feriadoManager.getFeriadosPersonalizados(anoSelecionado);
-      setFeriadosPersonalizados(feriadosAtualizados);
-      onFeriadoChange?.();
-      toast.success("Feriado removido!");
-    } else {
+      if (sucesso) {
+        const feriadosAtualizados =
+          await feriadoManager.getFeriadosPersonalizados(anoSelecionado);
+        setFeriadosPersonalizados(feriadosAtualizados);
+        onFeriadoChange?.();
+        toast.success("Feriado removido!");
+      } else {
+        toast.error("Erro ao remover feriado");
+      }
+    } catch (error) {
       toast.error("Erro ao remover feriado");
     }
   };
@@ -141,14 +155,14 @@ export default function FeriadosPersonalizados({
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const json = e.target?.result as string;
         feriadoManager.importarFeriadosPersonalizados(json);
 
         // Atualizar lista
         const feriadosAtualizados =
-          feriadoManager.getFeriadosPersonalizados(anoSelecionado);
+          await feriadoManager.getFeriadosPersonalizados(anoSelecionado);
         setFeriadosPersonalizados(feriadosAtualizados);
 
         onFeriadoChange?.();

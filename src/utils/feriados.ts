@@ -239,6 +239,18 @@ export function aplicarRegrasFeriado(
   };
 }
 
+// Verificar se uma data é feriado ou deve ser considerada escala vermelha
+export function isEscalaVermelha(data: Date, feriados: Feriado[]): boolean {
+  const dayOfWeek = data.getDay();
+  // Finais de semana (sábado e domingo) são escala vermelha
+  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
+  // Feriados também são considerados escala vermelha
+  const isFeriadoData = isFeriado(data, feriados) !== null;
+
+  return isWeekend || isFeriadoData;
+}
+
 // Função auxiliar para formatar data
 function formatDate(data: Date): string {
   return data.toISOString().split("T")[0];
@@ -256,71 +268,201 @@ export function useFeriados(ano: number) {
   };
 }
 
+import { supabase } from "@/lib/supabaseClient";
+
 // Classe principal para gerenciar feriados
 export default class FeriadoManager {
   private feriados: Map<number, Feriado[]> = new Map();
   private feriadosPersonalizados: Map<number, Feriado[]> = new Map();
+  private organizacaoId: string;
+  private userId: string;
+
+  constructor(organizacaoId: string, userId: string) {
+    if (!organizacaoId || organizacaoId.trim() === "") {
+      throw new Error("ID da organização é obrigatório");
+    }
+    if (!userId || userId.trim() === "") {
+      throw new Error("ID do usuário é obrigatório");
+    }
+    this.organizacaoId = organizacaoId;
+    this.userId = userId;
+  }
+
+  // Carregar feriados personalizados do banco de dados
+  async carregarFeriadosPersonalizados(ano?: number): Promise<void> {
+    try {
+      // Verificar se o organizacaoId é válido
+      if (!this.organizacaoId || this.organizacaoId.trim() === "") {
+        console.warn(
+          "ID da organização não está definido, pulando carregamento de feriados personalizados"
+        );
+        return;
+      }
+
+      let query = supabase
+        .from("feriados_personalizados")
+        .select("*")
+        .eq("organizacao_id", this.organizacaoId);
+
+      if (ano) {
+        const inicioAno = `${ano}-01-01`;
+        const fimAno = `${ano}-12-31`;
+        query = query.gte("data", inicioAno).lte("data", fimAno);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error("Erro na consulta de feriados personalizados:", error);
+        throw error;
+      }
+
+      // Agrupar por ano
+      if (data) {
+        const feriadosPorAno = new Map<number, Feriado[]>();
+
+        data.forEach((item) => {
+          const dataFeriado = new Date(item.data);
+          const anoFeriado = dataFeriado.getFullYear();
+
+          const feriado: Feriado = {
+            data: item.data,
+            nome: item.nome,
+            tipo: item.tipo as "nacional" | "regional" | "organizacional",
+            afetaEscala: item.afeta_escala,
+            folgasAdicionais: item.folgas_adicionais,
+          };
+
+          if (!feriadosPorAno.has(anoFeriado)) {
+            feriadosPorAno.set(anoFeriado, []);
+          }
+          feriadosPorAno.get(anoFeriado)!.push(feriado);
+        });
+
+        // Atualizar o cache
+        for (const [anoKey, feriados] of feriadosPorAno.entries()) {
+          this.feriadosPersonalizados.set(anoKey, feriados);
+          // Invalidar cache de feriados combinados
+          this.feriados.delete(anoKey);
+        }
+      }
+    } catch (error) {
+      console.error("Erro ao carregar feriados personalizados:", error);
+    }
+  }
 
   // Adicionar feriado personalizado
-  addFeriadoPersonalizado(feriado: Feriado): void {
-    const data = new Date(feriado.data);
-    const ano = data.getFullYear();
+  async addFeriadoPersonalizado(feriado: Feriado): Promise<boolean> {
+    try {
+      console.log("Inserindo feriado:", {
+        organizacao_id: this.organizacaoId,
+        data: feriado.data,
+        nome: feriado.nome,
+        tipo: feriado.tipo,
+        afeta_escala: feriado.afetaEscala,
+        folgas_adicionais: feriado.folgasAdicionais || 1,
+        created_by: this.userId,
+      });
 
-    if (!this.feriadosPersonalizados.has(ano)) {
-      this.feriadosPersonalizados.set(ano, []);
-    }
+      const { data: insertData, error } = await supabase
+        .from("feriados_personalizados")
+        .insert({
+          organizacao_id: this.organizacaoId,
+          data: feriado.data,
+          nome: feriado.nome,
+          tipo: feriado.tipo,
+          afeta_escala: feriado.afetaEscala,
+          folgas_adicionais: feriado.folgasAdicionais || 1,
+          created_by: this.userId,
+        })
+        .select();
 
-    const feriadosAno = this.feriadosPersonalizados.get(ano)!;
+      if (error) {
+        console.error("Erro ao inserir feriado:", error);
+        throw error;
+      }
 
-    // Verificar se já existe (evitar duplicatas)
-    const existe = feriadosAno.some((f) => f.data === feriado.data);
-    if (!existe) {
-      feriadosAno.push(feriado);
-      // Invalidar cache do ano para recriar com os novos feriados
-      this.feriados.delete(ano);
+      console.log("Feriado inserido com sucesso:", insertData);
+
+      // Atualizar cache local
+      const data = new Date(feriado.data);
+      const ano = data.getFullYear();
+
+      if (!this.feriadosPersonalizados.has(ano)) {
+        this.feriadosPersonalizados.set(ano, []);
+      }
+
+      const feriadosAno = this.feriadosPersonalizados.get(ano)!;
+      const existe = feriadosAno.some((f) => f.data === feriado.data);
+
+      if (!existe) {
+        feriadosAno.push(feriado);
+        // Invalidar cache do ano
+        this.feriados.delete(ano);
+      }
+
+      return true;
+    } catch (error) {
+      console.error("Erro ao adicionar feriado personalizado:", error);
+      return false;
     }
   }
 
   // Remover feriado personalizado
-  removeFeriadoPersonalizado(data: string): boolean {
-    const dataObj = new Date(data);
-    const ano = dataObj.getFullYear();
+  async removeFeriadoPersonalizado(data: string): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from("feriados_personalizados")
+        .delete()
+        .eq("organizacao_id", this.organizacaoId)
+        .eq("data", data);
 
-    if (!this.feriadosPersonalizados.has(ano)) {
+      if (error) throw error;
+
+      // Atualizar cache local
+      const dataObj = new Date(data);
+      const ano = dataObj.getFullYear();
+
+      if (this.feriadosPersonalizados.has(ano)) {
+        const feriadosAno = this.feriadosPersonalizados.get(ano)!;
+        const index = feriadosAno.findIndex((f) => f.data === data);
+
+        if (index >= 0) {
+          feriadosAno.splice(index, 1);
+          // Invalidar cache do ano
+          this.feriados.delete(ano);
+        }
+      }
+
+      return true;
+    } catch (error) {
+      console.error("Erro ao remover feriado personalizado:", error);
       return false;
     }
-
-    const feriadosAno = this.feriadosPersonalizados.get(ano)!;
-    const index = feriadosAno.findIndex((f) => f.data === data);
-
-    if (index >= 0) {
-      feriadosAno.splice(index, 1);
-      // Invalidar cache do ano
-      this.feriados.delete(ano);
-      return true;
-    }
-
-    return false;
   }
 
   // Obter feriados personalizados de um ano
-  getFeriadosPersonalizados(ano: number): Feriado[] {
+  async getFeriadosPersonalizados(ano: number): Promise<Feriado[]> {
+    // Se não temos no cache, carregar do banco
+    if (!this.feriadosPersonalizados.has(ano)) {
+      await this.carregarFeriadosPersonalizados(ano);
+    }
     return this.feriadosPersonalizados.get(ano) || [];
   }
 
   // Verificar se um feriado é personalizado
-  isFeriadoPersonalizado(data: Date): boolean {
+  async isFeriadoPersonalizado(data: Date): Promise<boolean> {
     const ano = data.getFullYear();
     const dataStr = formatDate(data);
-    const feriadosPersonalizados = this.getFeriadosPersonalizados(ano);
+    const feriadosPersonalizados = await this.getFeriadosPersonalizados(ano);
     return feriadosPersonalizados.some((f) => f.data === dataStr);
   }
 
   // Obter feriados de um ano específico (incluindo personalizados)
-  getFeriados(ano: number): Feriado[] {
+  async getFeriados(ano: number): Promise<Feriado[]> {
     if (!this.feriados.has(ano)) {
       const feriadosNacionais = obterTodosFeriados(ano);
-      const feriadosPersonalizados = this.getFeriadosPersonalizados(ano);
+      const feriadosPersonalizados = await this.getFeriadosPersonalizados(ano);
 
       // Combinar e ordenar por data
       const todosFeriados = [
@@ -334,17 +476,24 @@ export default class FeriadoManager {
   }
 
   // Verificar se uma data é feriado
-  isHoliday(data: Date): boolean {
+  async isHoliday(data: Date): Promise<boolean> {
     const ano = data.getFullYear();
-    const feriados = this.getFeriados(ano);
+    const feriados = await this.getFeriados(ano);
     return isFeriado(data, feriados) !== null;
   }
 
   // Obter informações do feriado
-  getHolidayInfo(data: Date): Feriado | null {
+  async getHolidayInfo(data: Date): Promise<Feriado | null> {
     const ano = data.getFullYear();
-    const feriados = this.getFeriados(ano);
+    const feriados = await this.getFeriados(ano);
     return isFeriado(data, feriados);
+  }
+
+  // Verificar se uma data deve ser considerada escala vermelha (finais de semana + feriados)
+  async isEscalaVermelha(data: Date): Promise<boolean> {
+    const ano = data.getFullYear();
+    const feriados = await this.getFeriados(ano);
+    return isEscalaVermelha(data, feriados);
   }
 
   // Verificar se é período especial (entre Natal e Ano Novo)
@@ -357,11 +506,11 @@ export default class FeriadoManager {
   }
 
   // Aplicar regras de feriado para escala
-  applyHolidayRules(
+  async applyHolidayRules(
     data: Date,
     membrosAtivos: any[]
-  ): { folgasExtras: number; ajusteEspecial: boolean } {
-    const feriado = this.getHolidayInfo(data);
+  ): Promise<{ folgasExtras: number; ajusteEspecial: boolean }> {
+    const feriado = await this.getHolidayInfo(data);
     return aplicarRegrasFeriado(data, membrosAtivos, feriado);
   }
 
