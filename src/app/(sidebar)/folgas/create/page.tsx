@@ -1335,7 +1335,7 @@ export default function FolgasCreatePage() {
         const { isHoliday, isSpecialPeriod } = dayHolidayInfo;
 
         // Calcular incremento de folgas uma única vez
-        const folgasIncrement = isHoliday || isSpecialPeriod ? 1.5 : 1;
+        const folgasIncrement = isHoliday || isSpecialPeriod ? 1 : 1;
 
         // Determinar se é escala vermelha (finais de semana + feriados)
         const isEscalaVermelha = await feriadoManager.isEscalaVermelha(
@@ -1988,10 +1988,10 @@ export default function FolgasCreatePage() {
     let additionalInfo = `${schedule.length} dias de trabalho programados. Regras aplicadas: apenas 1 pessoa por especialização trabalha por dia. Quem trabalha 2 dias consecutivos na vermelha descansa na segunda-feira.`;
     
     // Adicionar logs importantes sobre exclusões e avisos
-    const allLogs = [...excludedFromConsecutiveRed, ...noEligibleForConsecutiveRed];
-    if (allLogs.length > 0) {
-      additionalInfo += `\n\nInformações importantes:\n${allLogs.join('\n')}`;
-    }
+    // const allLogs = [...excludedFromConsecutiveRed, ...noEligibleForConsecutiveRed];
+    // if (allLogs.length > 0) {
+    //   additionalInfo += `\n\nInformações importantes:\n${allLogs.join('\n')}`;
+    // }
     
     toast.success("Escala gerada com sucesso!", {
       description: additionalInfo,
@@ -2097,6 +2097,8 @@ export default function FolgasCreatePage() {
       setLoading(false);
     }
   };
+
+
 
   const getObservacoesHtml = () => {
     if (!selectedObservacaoTemplate || selectedObservacaoTemplate === "none") {
@@ -2440,10 +2442,6 @@ export default function FolgasCreatePage() {
                           <li>
                             • Em feriados, mais pessoas ficam de folga (escala
                             reduzida)
-                          </li>
-                          <li>
-                            • Folgas em feriados valem 1.5x (vale mais no
-                            contador)
                           </li>
                           <li>
                             • Períodos especiais (Natal/Ano Novo) têm regras
