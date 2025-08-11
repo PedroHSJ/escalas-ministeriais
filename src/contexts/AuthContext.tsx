@@ -29,7 +29,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (process.env.NODE_ENV === "development") {
       // No desenvolvimento, criar um usuário mock
       const mockUser = {
-        id: "d58c420f-7db1-42e9-b040-e1d038ef79af",
+        id: "",
         email: "dev@example.com",
         user_metadata: {
           full_name: "Usuário Desenvolvimento",
