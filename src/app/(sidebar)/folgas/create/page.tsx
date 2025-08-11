@@ -1219,6 +1219,11 @@ export default function FolgasCreatePage() {
       assignments: Record<string, EscalaFolgaMember[]>; // Por especialização
     }> = [];
 
+    // Arrays para capturar logs importantes para o toast
+    const importantLogs: string[] = [];
+    const excludedFromConsecutiveRed: string[] = [];
+    const noEligibleForConsecutiveRed: string[] = [];
+
     // Separar membros ativos (que trabalham) dos que apenas contabilizam folgas
     const activeMembersOnly = scaleMembers.filter(
       (member) => !member.apenasContabilizaFolgas
@@ -1523,14 +1528,23 @@ export default function FolgasCreatePage() {
                 );
                 const sundayWorkers = previousDayEntry.working;
 
+                console.log(`🔴 VERIFICANDO dois dias consecutivos na vermelha (sábado + domingo):`);
+                
                 sundayWorkers.forEach((member) => {
                   if (
                     member.doisDiasConsecutivosVermelha &&
                     saturdayWorkers.has(member.id)
                   ) {
                     membersWhoWorked2ConsecutiveRed.add(member.id);
+                    console.log(
+                      `⚫ ${member.nome} trabalhou sábado + domingo na vermelha - NÃO pode trabalhar hoje na preta`
+                    );
                   }
                 });
+                
+                if (membersWhoWorked2ConsecutiveRed.size === 0) {
+                  console.log(`✅ Nenhum membro trabalhou dois dias consecutivos na vermelha`);
+                }
               }
             }
           }
@@ -1564,57 +1578,105 @@ export default function FolgasCreatePage() {
           let priorityWorkingMembers: any[] = [];
 
           if (isEscalaVermelha) {
-            // Se é sábado ou domingo, verificar membros marcados para dois dias consecutivos
-            const membersForConsecutiveRed = sortedMembers.filter(
+            // Se é sábado, domingo ou feriado, verificar membros marcados para dois dias consecutivos
+            let membersForConsecutiveRed = sortedMembers.filter(
               (member) =>
                 member.doisDiasConsecutivosVermelha &&
                 !membersWho24hYesterday.has(member.id)
             );
 
             if (membersForConsecutiveRed.length > 0) {
-              // Verificar se é sábado (day 6) ou domingo (day 0)
+              // Verificar se é sábado (day 6), domingo (day 0) ou feriado
               const dayOfWeekNumber = currentDate.getDay();
+              const isWeekend = dayOfWeekNumber === 0 || dayOfWeekNumber === 6;
+              const isHoliday = isEscalaVermelha && !isWeekend; // Se é escala vermelha mas não é fim de semana, é feriado
 
-              if (dayOfWeekNumber === 6) {
-                // É sábado - selecionar quem tem MAIS folgas entre os marcados para dois dias consecutivos
-                // Ordenar por folgas da escala vermelha (decrescente) - quem tem mais folgas primeiro
-                const sortedConsecutiveMembers = membersForConsecutiveRed.sort(
-                  (a, b) => {
-                    const folgasA = a.folgasAtualVermelha;
-                    const folgasB = b.folgasAtualVermelha;
-
-                    if (folgasA !== folgasB) {
-                      return folgasB - folgasA; // Ordem decrescente - mais folgas primeiro
-                    }
-                    return a.posicaoAtual - b.posicaoAtual; // Em caso de empate, usar posição
+              if (dayOfWeekNumber === 6 || isHoliday) {
+                // É sábado ou feriado - início dos dois dias consecutivos
+                
+                // EXCLUIR COMPLETAMENTE membros que trabalharam na preta ontem
+                // Para evitar 3 dias consecutivos de trabalho (1 preta + 2 vermelha)
+                const membersWhoWorkedPretaYesterday = new Set<string>();
+                if (previousDayEntry) {
+                  const previousDayOfWeek = previousDay.getDay();
+                  const wasEscalaPreta = previousDayOfWeek >= 1 && previousDayOfWeek <= 5;
+                  
+                  if (wasEscalaPreta) {
+                    previousDayEntry.working.forEach((member) => {
+                      membersWhoWorkedPretaYesterday.add(member.id);
+                      const logMessage = `${member.nome} trabalhou ontem na escala PRETA - EXCLUÍDO dos dois dias consecutivos na vermelha (evitar 3 dias seguidos)`;
+                      console.log(`⚫ ${logMessage}`);
+                      excludedFromConsecutiveRed.push(logMessage);
+                    });
                   }
+                }
+
+                // FILTRAR COMPLETAMENTE quem trabalhou na preta ontem
+                const eligibleMembersForConsecutive = membersForConsecutiveRed.filter(
+                  (member) => !membersWhoWorkedPretaYesterday.has(member.id)
                 );
 
-                priorityWorkingMembers = [sortedConsecutiveMembers[0]]; // Apenas o mais descansado
-              } else if (dayOfWeekNumber === 0) {
-                // É domingo - verificar quem trabalhou no sábado anterior
-                const previousSaturday = new Date(currentDate);
-                previousSaturday.setDate(previousSaturday.getDate() - 1);
+                if (eligibleMembersForConsecutive.length > 0) {
+                  // Ordenar apenas por folgas na vermelha (já foram excluídos os que trabalharam na preta)
+                  const sortedConsecutiveMembers = eligibleMembersForConsecutive.sort(
+                    (a, b) => {
+                      // 1ª PRIORIDADE: Mais folgas da escala vermelha (decrescente)
+                      const folgasA = a.folgasAtualVermelha;
+                      const folgasB = b.folgasAtualVermelha;
 
-                const saturdayEntry = schedule.find(
+                      if (folgasA !== folgasB) {
+                        return folgasB - folgasA; // Ordem decrescente - mais folgas primeiro
+                      }
+
+                      // 2ª PRIORIDADE: Posição na escala (em caso de empate)
+                      return a.posicaoAtual - b.posicaoAtual;
+                    }
+                  );
+
+                  priorityWorkingMembers = [sortedConsecutiveMembers[0]]; // Apenas o melhor candidato
+                  
+                  // 🔍 LOG: Mostrar critério de seleção para dois dias consecutivos na vermelha
+                  const selectedMember = sortedConsecutiveMembers[0];
+                  const dayType = isHoliday ? "FERIADO" : (dayOfWeekNumber === 6 ? "SÁBADO" : "DOMINGO");
+                  console.log(
+                    `🔴 SELECIONADO para DOIS DIAS CONSECUTIVOS VERMELHA (${dayType}): ${selectedMember.nome} - ${selectedMember.folgasAtualVermelha} folgas vermelha (NÃO trabalhou preta ontem)`
+                  );
+                } else {
+                  // Nenhum membro elegível para dois dias consecutivos (todos trabalharam na preta ontem)
+                  const warningMessage = `⚠️ NENHUM membro elegível para dois dias consecutivos na vermelha - todos trabalharam na preta ontem`;
+                  console.log(warningMessage);
+                  noEligibleForConsecutiveRed.push(warningMessage);
+                }
+              } else if (dayOfWeekNumber === 0 || isHoliday) {
+                // É domingo ou dia seguinte a um feriado - verificar continuidade dos dois dias consecutivos
+                const previousDayDate = new Date(currentDate);
+                previousDayDate.setDate(previousDayDate.getDate() - 1);
+
+                const previousDayScheduleEntry = schedule.find(
                   (entry) =>
-                    entry.date.toDateString() ===
-                    previousSaturday.toDateString()
+                    entry.date.toDateString() === previousDayDate.toDateString()
                 );
 
-                if (saturdayEntry) {
-                  // Membros que trabalharam no sábado e estão marcados para dois dias consecutivos
-                  const saturdayWorkers = saturdayEntry.working.map(
+                if (previousDayScheduleEntry) {
+                  // Membros que trabalharam no dia anterior e estão marcados para dois dias consecutivos
+                  const previousDayWorkers = previousDayScheduleEntry.working.map(
                     (w) => w.id
                   );
                   const continuityMembers = membersForConsecutiveRed.filter(
-                    (member) => saturdayWorkers.includes(member.id)
+                    (member) => previousDayWorkers.includes(member.id)
                   );
 
-                  // Se há alguém que trabalhou sábado e está marcado para dois dias consecutivos,
-                  // essa pessoa deve continuar no domingo
+                  // Se há alguém que trabalhou ontem e está marcado para dois dias consecutivos,
+                  // essa pessoa deve continuar hoje (garantir continuidade)
                   if (continuityMembers.length > 0) {
                     priorityWorkingMembers = [continuityMembers[0]]; // Garantir continuidade
+                    
+                    // 🔍 LOG: Mostrar continuidade
+                    const selectedMember = continuityMembers[0];
+                    const dayType = dayOfWeekNumber === 0 ? "DOMINGO" : "DIA SEGUINTE AO FERIADO";
+                    console.log(
+                      `🔴 CONTINUIDADE ${dayType}: ${selectedMember.nome} continua trabalhando (trabalhou ontem para dois dias consecutivos)`
+                    );
                   }
                 }
               }
@@ -1921,8 +1983,18 @@ export default function FolgasCreatePage() {
     setScaleMembers(updatedScaleMembers);
 
     setGeneratedSchedule(schedule);
+    
+    // Preparar informações adicionais para o toast
+    let additionalInfo = `${schedule.length} dias de trabalho programados. Regras aplicadas: apenas 1 pessoa por especialização trabalha por dia. Quem trabalha 2 dias consecutivos na vermelha descansa na segunda-feira.`;
+    
+    // Adicionar logs importantes sobre exclusões e avisos
+    const allLogs = [...excludedFromConsecutiveRed, ...noEligibleForConsecutiveRed];
+    if (allLogs.length > 0) {
+      additionalInfo += `\n\nInformações importantes:\n${allLogs.join('\n')}`;
+    }
+    
     toast.success("Escala gerada com sucesso!", {
-      description: `${schedule.length} dias de trabalho programados. Regras aplicadas: apenas 1 pessoa por especialização trabalha por dia. Quem trabalha 2 dias consecutivos na vermelha descansa na segunda-feira.`,
+      description: additionalInfo,
     });
   };
 
@@ -3473,9 +3545,6 @@ export default function FolgasCreatePage() {
                               >
                                 Férias/Licença
                               </label>
-                            </div>
-                            <div className="text-sm text-muted-foreground">
-                              Folgas atuais: {member.folgasAtuais}
                             </div>
                           </div>
                         </div>
