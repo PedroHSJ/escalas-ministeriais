@@ -43,6 +43,154 @@ function loadEnvFile() {
 // Carregar .env no início
 loadEnvFile();
 
+// Função para traduzir mensagens de commit para português
+function translateCommitMessage(message) {
+  // Dicionário de traduções comuns
+  const translations = {
+    // Ações
+    add: "adicionar",
+    create: "criar",
+    implement: "implementar",
+    build: "construir",
+    develop: "desenvolver",
+    setup: "configurar",
+    init: "inicializar",
+    install: "instalar",
+
+    // Correções
+    fix: "corrigir",
+    correct: "corrigir",
+    resolve: "resolver",
+    solve: "solucionar",
+    repair: "reparar",
+    patch: "corrigir",
+
+    // Melhorias
+    improve: "melhorar",
+    enhance: "aprimorar",
+    optimize: "otimizar",
+    update: "atualizar",
+    upgrade: "atualizar",
+    refactor: "refatorar",
+    clean: "limpar",
+    polish: "polir",
+
+    // Remoções
+    remove: "remover",
+    delete: "deletar",
+    drop: "remover",
+
+    // Funcionalidades
+    feature: "funcionalidade",
+    functionality: "funcionalidade",
+    system: "sistema",
+    component: "componente",
+    module: "módulo",
+    service: "serviço",
+    api: "API",
+    interface: "interface",
+    ui: "interface",
+    ux: "experiência do usuário",
+
+    // Específicos do projeto
+    auth: "autenticação",
+    authentication: "autenticação",
+    login: "login",
+    logout: "logout",
+    user: "usuário",
+    users: "usuários",
+    dashboard: "painel",
+    calendar: "calendário",
+    schedule: "escala",
+    scales: "escalas",
+    member: "membro",
+    members: "membros",
+    department: "departamento",
+    departments: "departamentos",
+    organization: "organização",
+    organizations: "organizações",
+    holiday: "feriado",
+    holidays: "feriados",
+    vacation: "folga",
+    vacations: "folgas",
+    report: "relatório",
+    reports: "relatórios",
+    export: "exportar",
+    import: "importar",
+    pdf: "PDF",
+    email: "email",
+    notification: "notificação",
+    notifications: "notificações",
+    validation: "validação",
+    form: "formulário",
+    forms: "formulários",
+    button: "botão",
+    buttons: "botões",
+    modal: "modal",
+    sidebar: "barra lateral",
+    navbar: "barra de navegação",
+    footer: "rodapé",
+    header: "cabeçalho",
+    layout: "layout",
+    theme: "tema",
+    "dark mode": "modo escuro",
+    "light mode": "modo claro",
+    responsive: "responsivo",
+    mobile: "mobile",
+    desktop: "desktop",
+    tablet: "tablet",
+
+    // Técnicos
+    database: "banco de dados",
+    db: "banco de dados",
+    migration: "migração",
+    schema: "esquema",
+    query: "consulta",
+    endpoint: "endpoint",
+    middleware: "middleware",
+    config: "configuração",
+    configuration: "configuração",
+    environment: "ambiente",
+    env: "ambiente",
+    dependency: "dependência",
+    dependencies: "dependências",
+    package: "pacote",
+    packages: "pacotes",
+    version: "versão",
+    release: "release",
+    deploy: "deploy",
+    deployment: "deployment",
+    test: "teste",
+    tests: "testes",
+    testing: "teste",
+    bug: "bug",
+    error: "erro",
+    warning: "aviso",
+    log: "log",
+    logging: "logging",
+    security: "segurança",
+    performance: "performance",
+    loading: "carregamento",
+    cache: "cache",
+    storage: "armazenamento",
+    session: "sessão",
+    cookie: "cookie",
+    token: "token",
+    jwt: "JWT",
+    oauth: "OAuth",
+  };
+
+  let translatedMessage = message;
+
+  // Primeiro, aplicar traduções do dicionário local
+  Object.entries(translations).forEach(([english, portuguese]) => {
+    const regex = new RegExp(`\\b${english}\\b`, "gi");
+    translatedMessage = translatedMessage.replace(regex, portuguese);
+  });
+
+  return translatedMessage;
+}
+
 // Função para traduzir usando Google Translate API (fallback)
 async function translateWithGoogleAPI(text) {
   try {
