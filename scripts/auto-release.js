@@ -6,12 +6,42 @@
  */
 
 const fs = require("fs");
+const path = require("path");
 const { execSync } = require("child_process");
 const {
   generateReleaseNotes,
   getNextVersion,
 } = require("./generate-release-notes");
 const https = require("https");
+
+// Carregar variáveis de ambiente do arquivo .env
+function loadEnvFile() {
+  try {
+    const envPath = path.join(process.cwd(), '.env');
+    if (fs.existsSync(envPath)) {
+      const envContent = fs.readFileSync(envPath, 'utf8');
+      envContent.split('\n').forEach(line => {
+        const trimmedLine = line.trim();
+        if (trimmedLine && !trimmedLine.startsWith('#')) {
+          const equalIndex = trimmedLine.indexOf('=');
+          if (equalIndex > 0) {
+            const key = trimmedLine.substring(0, equalIndex).trim();
+            const value = trimmedLine.substring(equalIndex + 1).trim();
+            if (key && value && !process.env[key]) {
+              process.env[key] = value;
+            }
+          }
+        }
+      });
+      console.log('📄 Arquivo .env carregado');
+    }
+  } catch (error) {
+    console.log('⚠️ Erro ao carregar .env:', error.message);
+  }
+}
+
+// Carregar .env no início
+loadEnvFile();
 
 // Função para obter commits desde a última tag
 function getCommitsSinceLastTag() {
@@ -222,10 +252,11 @@ function createReleaseWithCli(version, title, body, isPrerelease = false) {
 // Função para criar release usando API do GitHub
 function createReleaseWithApi(version, title, body, isPrerelease = false) {
   const token = process.env.GITHUB_TOKEN;
-  if (!token) {
+  if (!token || token.trim() === '') {
     console.error(
-      "❌ Token do GitHub não encontrado. Defina a variável GITHUB_TOKEN ou use o GitHub CLI."
+      "❌ Token do GitHub não encontrado ou vazio. Verifique a variável GITHUB_TOKEN no arquivo .env"
     );
+    console.log("🔍 Token atual:", token ? `${token.substring(0, 10)}...` : 'undefined');
     return false;
   }
 
@@ -329,9 +360,10 @@ function main() {
       );
 
       if (commits.length === 0) {
-        console.log(
-          "⚠️  Nenhum commit novo encontrado. Continuando mesmo assim..."
-        );
+        console.log("⚠️  Nenhum commit novo encontrado.");
+        console.log("❌ Não é possível criar uma release sem commits novos.");
+        console.log("💡 Faça algumas alterações e commits antes de criar uma release.");
+        process.exit(0);
       }
 
       // 4. Atualizar versão no package.json
