@@ -17,13 +17,13 @@ const https = require("https");
 // Carregar variáveis de ambiente do arquivo .env
 function loadEnvFile() {
   try {
-    const envPath = path.join(process.cwd(), '.env');
+    const envPath = path.join(process.cwd(), ".env");
     if (fs.existsSync(envPath)) {
-      const envContent = fs.readFileSync(envPath, 'utf8');
-      envContent.split('\n').forEach(line => {
+      const envContent = fs.readFileSync(envPath, "utf8");
+      envContent.split("\n").forEach((line) => {
         const trimmedLine = line.trim();
-        if (trimmedLine && !trimmedLine.startsWith('#')) {
-          const equalIndex = trimmedLine.indexOf('=');
+        if (trimmedLine && !trimmedLine.startsWith("#")) {
+          const equalIndex = trimmedLine.indexOf("=");
           if (equalIndex > 0) {
             const key = trimmedLine.substring(0, equalIndex).trim();
             const value = trimmedLine.substring(equalIndex + 1).trim();
@@ -33,15 +33,134 @@ function loadEnvFile() {
           }
         }
       });
-      console.log('📄 Arquivo .env carregado');
+      console.log("📄 Arquivo .env carregado");
     }
   } catch (error) {
-    console.log('⚠️ Erro ao carregar .env:', error.message);
+    console.log("⚠️ Erro ao carregar .env:", error.message);
   }
 }
 
 // Carregar .env no início
 loadEnvFile();
+
+// Função para traduzir usando Google Translate API (fallback)
+async function translateWithGoogleAPI(text) {
+  try {
+    // Verificar se o texto já está principalmente em português
+    const portugueseWords = [
+      "o",
+      "a",
+      "de",
+      "para",
+      "com",
+      "em",
+      "do",
+      "da",
+      "no",
+      "na",
+      "por",
+      "são",
+      "foi",
+      "ser",
+      "tem",
+      "mais",
+      "seu",
+      "que",
+      "uma",
+      "como",
+      "ele",
+      "ela",
+      "ou",
+      "se",
+      "na",
+      "um",
+      "dos",
+      "das",
+      "nos",
+      "nas",
+    ];
+    const wordsInText = text.toLowerCase().split(/\s+/);
+    const portugueseWordCount = wordsInText.filter((word) =>
+      portugueseWords.includes(word)
+    ).length;
+
+    // Se mais de 30% das palavras são portuguesas, provavelmente já está em português
+    if (portugueseWordCount / wordsInText.length > 0.3) {
+      return text;
+    }
+
+    // URL da API do Google Translate (gratuita via MyMemory)
+    const encodedText = encodeURIComponent(text);
+    const url = `https://api.mymemory.translated.net/get?q=${encodedText}&langpair=en|pt-br`;
+
+    return new Promise((resolve, reject) => {
+      const https = require("https");
+
+      https
+        .get(url, (res) => {
+          let data = "";
+
+          res.on("data", (chunk) => {
+            data += chunk;
+          });
+
+          res.on("end", () => {
+            try {
+              const response = JSON.parse(data);
+              if (
+                response.responseStatus === 200 &&
+                response.responseData.translatedText
+              ) {
+                resolve(response.responseData.translatedText);
+              } else {
+                resolve(text); // Retorna o texto original se falhar
+              }
+            } catch (error) {
+              resolve(text); // Retorna o texto original se falhar
+            }
+          });
+        })
+        .on("error", (error) => {
+          resolve(text); // Retorna o texto original se falhar
+        });
+    });
+  } catch (error) {
+    return text; // Retorna o texto original se falhar
+  }
+}
+
+// Função para traduzir mensagens com fallback para Google API
+async function translateCommitMessageAdvanced(message) {
+  // Primeiro, aplicar tradução local
+  let translatedMessage = translateCommitMessage(message);
+
+  // Se a mensagem ainda tem muitas palavras em inglês, tentar Google API
+  const originalWords = message.split(/\s+/);
+  const translatedWords = translatedMessage.split(/\s+/);
+
+  // Se menos de 50% das palavras foram traduzidas, usar Google API
+  const translationRate =
+    (originalWords.length -
+      translatedWords.filter(
+        (word, index) =>
+          originalWords[index] &&
+          word.toLowerCase() === originalWords[index].toLowerCase()
+      ).length) /
+    originalWords.length;
+
+  if (translationRate < 0.5) {
+    try {
+      const googleTranslated = await translateWithGoogleAPI(message);
+      if (googleTranslated && googleTranslated !== message) {
+        return googleTranslated;
+      }
+    } catch (error) {
+      // Se falhar, continua com a tradução local
+    }
+  }
+
+  return translatedMessage;
+}
 
 // Função para obter commits desde a última tag
 function getCommitsSinceLastTag() {
@@ -117,7 +236,7 @@ function categorizeCommits(commits) {
 }
 
 // Função para gerar o corpo da release
-function generateReleaseBody(version, type, commits) {
+async function generateReleaseBody(version, type, commits) {
   const date = new Date().toLocaleDateString("pt-BR", {
     day: "2-digit",
     month: "long",
@@ -125,9 +244,9 @@ function generateReleaseBody(version, type, commits) {
   });
 
   const typeLabels = {
-    major: "Major (Breaking Changes)",
-    minor: "Minor (Novas Funcionalidades)",
-    patch: "Patch (Correções e Melhorias)",
+    major: "Versão Principal (Mudanças Importantes)",
+    minor: "Versão Secundária (Novas Funcionalidades)",
+    patch: "Correção (Correções e Melhorias)",
   };
 
   const categories = categorizeCommits(commits);
@@ -142,15 +261,16 @@ function generateReleaseBody(version, type, commits) {
 
   // Breaking Changes (para major)
   if (type === "major" && categories.breaking.length > 0) {
-    body += `## ⚠️ **Breaking Changes**
+    body += `## ⚠️ **Mudanças Importantes**
 
 `;
-    categories.breaking.forEach((commit) => {
+    for (const commit of categories.breaking) {
       const message = commit
         .replace(/^[a-f0-9]+\s/, "")
         .replace(/^breaking:\s*/i, "");
-      body += `- ${message}\n`;
-    });
+      const translatedMessage = await translateCommitMessageAdvanced(message);
+      body += `- ${translatedMessage}\n`;
+    }
     body += "\n";
   }
 
@@ -159,12 +279,13 @@ function generateReleaseBody(version, type, commits) {
     body += `## ✨ **Novas Funcionalidades**
 
 `;
-    categories.features.forEach((commit) => {
+    for (const commit of categories.features) {
       const message = commit
         .replace(/^[a-f0-9]+\s/, "")
         .replace(/^(feat|feature):\s*/i, "");
-      body += `- ${message}\n`;
-    });
+      const translatedMessage = await translateCommitMessageAdvanced(message);
+      body += `- ${translatedMessage}\n`;
+    }
     body += "\n";
   }
 
@@ -173,12 +294,13 @@ function generateReleaseBody(version, type, commits) {
     body += `## 🐛 **Correções de Bugs**
 
 `;
-    categories.fixes.forEach((commit) => {
+    for (const commit of categories.fixes) {
       const message = commit
         .replace(/^[a-f0-9]+\s/, "")
         .replace(/^(fix|bug):\s*/i, "");
-      body += `- ${message}\n`;
-    });
+      const translatedMessage = await translateCommitMessageAdvanced(message);
+      body += `- ${translatedMessage}\n`;
+    }
     body += "\n";
   }
 
@@ -187,12 +309,13 @@ function generateReleaseBody(version, type, commits) {
     body += `## ⚡ **Melhorias**
 
 `;
-    categories.improvements.forEach((commit) => {
+    for (const commit of categories.improvements) {
       const message = commit
         .replace(/^[a-f0-9]+\s/, "")
         .replace(/^(improve|perf|style):\s*/i, "");
-      body += `- ${message}\n`;
-    });
+      const translatedMessage = await translateCommitMessageAdvanced(message);
+      body += `- ${translatedMessage}\n`;
+    }
     body += "\n";
   }
 
@@ -201,12 +324,13 @@ function generateReleaseBody(version, type, commits) {
     body += `## 🔧 **Alterações Técnicas**
 
 `;
-    categories.technical.forEach((commit) => {
+    for (const commit of categories.technical) {
       const message = commit
         .replace(/^[a-f0-9]+\s/, "")
         .replace(/^(refactor|chore|deps):\s*/i, "");
-      body += `- ${message}\n`;
-    });
+      const translatedMessage = await translateCommitMessageAdvanced(message);
+      body += `- ${translatedMessage}\n`;
+    }
     body += "\n";
   }
 
@@ -252,11 +376,14 @@ function createReleaseWithCli(version, title, body, isPrerelease = false) {
 // Função para criar release usando API do GitHub
 function createReleaseWithApi(version, title, body, isPrerelease = false) {
   const token = process.env.GITHUB_TOKEN;
-  if (!token || token.trim() === '') {
+  if (!token || token.trim() === "") {
     console.error(
       "❌ Token do GitHub não encontrado ou vazio. Verifique a variável GITHUB_TOKEN no arquivo .env"
     );
-    console.log("🔍 Token atual:", token ? `${token.substring(0, 10)}...` : 'undefined');
+    console.log(
+      "🔍 Token atual:",
+      token ? `${token.substring(0, 10)}...` : "undefined"
+    );
     return false;
   }
 
@@ -362,7 +489,9 @@ function main() {
       if (commits.length === 0) {
         console.log("⚠️  Nenhum commit novo encontrado.");
         console.log("❌ Não é possível criar uma release sem commits novos.");
-        console.log("💡 Faça algumas alterações e commits antes de criar uma release.");
+        console.log(
+          "💡 Faça algumas alterações e commits antes de criar uma release."
+        );
         process.exit(0);
       }
 
@@ -390,7 +519,9 @@ function main() {
       const title = `${
         versionType === "major" ? "🚀" : versionType === "minor" ? "✨" : "🔧"
       } Release v${nextVersion}`;
-      const body = generateReleaseBody(nextVersion, versionType, commits);
+
+      console.log("🌐 Traduzindo mensagens dos commits...");
+      const body = await generateReleaseBody(nextVersion, versionType, commits);
 
       // 9. Criar release no GitHub
       console.log("📋 Criando release no GitHub...");
