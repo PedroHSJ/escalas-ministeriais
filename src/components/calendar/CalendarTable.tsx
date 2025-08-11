@@ -113,7 +113,7 @@ export default function CalendarTable({
                 </span>
               </div>
               <div className="flex items-center gap-1.5 flex-shrink-0">
-                <div className="w-4 h-4 rounded border text-xs flex items-center justify-center font-bold bg-red-200 text-red-800 flex-shrink-0">
+                <div className="w-4 h-4 rounded border text-xs flex items-center justify-center font-bold bg-red-200 text-white flex-shrink-0">
                   1+
                 </div>
                 <span className="text-xs whitespace-nowrap">
