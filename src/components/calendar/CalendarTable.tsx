@@ -1,5 +1,6 @@
 "use client";
 
+import FeriadoManager from "@/utils/feriados";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -27,12 +28,14 @@ interface CalendarTableProps {
   getMemberSpecializationColor?: (memberName: string) => string;
   getSpecializationColor?: (index: number) => string;
   showLegend?: boolean;
+  feriadoManager?: FeriadoManager;
 }
 
 export default function CalendarTable({
   calendarData,
   getMemberSpecializationColor = () => "#f3f4f6",
   getSpecializationColor,
+  feriadoManager,
   showLegend = true,
 }: CalendarTableProps) {
   // Função padrão para cores das especializações
@@ -66,7 +69,7 @@ export default function CalendarTable({
     <div className="space-y-4">
       {/* Legenda das Especializações */}
       {showLegend && calendarData.specializations.length > 0 && (
-        <div className="bg-gray-50 p-3 rounded-lg">
+        <div className="bg-primary p-3 rounded-lg">
           <h4 className="font-medium mb-2 text-sm">Legenda:</h4>
 
           {/* Legenda da Escala Preta e Vermelha */}
@@ -152,13 +155,13 @@ export default function CalendarTable({
 
       {/* Tabela Calendário */}
       <div className="border rounded-lg overflow-x-auto">
-        <table className="w-full border-collapse border border-gray-300 min-w-max">
+        <table className="w-full border-collapse border border-gray-300">
           <thead>
             <tr>
-              <th className="border border-gray-300 p-1.5 bg-gray-100 font-bold text-xs sticky left-0 z-20 min-w-[100px] max-w-[140px]">
+              <th className="border border-gray-300 p-1.5 bg-primary-100 font-bold text-xs sticky left-0 z-20 min-w-[100px] max-w-[140px]">
                 <div className="truncate">Nome</div>
               </th>
-              {calendarData.dates.map((date, index) => {
+              {calendarData.dates.map(async (date, index) => {
                 // Escala Preta e Vermelha: PRETA = dias de semana, VERMELHA = finais de semana
                 // Função auxiliar para criar data segura
                 const createSafeDate = (dateStr: string) => {
@@ -173,9 +176,14 @@ export default function CalendarTable({
                   return new Date(dateStr + "T12:00:00");
                 };
 
-                const dateObj = createSafeDate(date);
-                const dayOfWeek = dateObj.getDay(); // 0 = domingo, 6 = sábado
-                const isWeekend = dayOfWeek === 0 || dayOfWeek === 6; // Domingo ou Sábado
+                // const dateObj = createSafeDate(date);
+                // const dayOfWeek = dateObj.getDay(); // 0 = domingo, 6 = sábado
+                // const isWeekend = dayOfWeek === 0 || dayOfWeek === 6; // Domingo ou Sábado
+
+                const isEscalaVermelha = await feriadoManager?.isEscalaVermelha(
+                  date
+                );
+
                 const bgColor = isWeekend ? "bg-red-600" : "bg-black"; // Vermelho para finais de semana, Preto para dias úteis
                 const textColor = "text-white";
 

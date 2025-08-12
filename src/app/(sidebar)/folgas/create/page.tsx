@@ -781,9 +781,9 @@ export default function FolgasCreatePage() {
   useEffect(() => {
     if (departments.length === 1 && !selectedDepartment) {
       setSelectedDepartment(departments[0].id);
-      toast.info("Departamento selecionado automaticamente", {
-        description: `${departments[0].nome} foi selecionado por ser o único disponível.`,
-      });
+      // toast.info("Departamento selecionado automaticamente", {
+      //   description: `${departments[0].nome} foi selecionado por ser o único disponível.`,
+      // });
     }
   }, [departments, selectedDepartment]);
 
@@ -1483,27 +1483,27 @@ export default function FolgasCreatePage() {
           );
           console.log("👥 Membros disponíveis (ordenados por folgas):");
 
-          sortedMembers.forEach((member, index) => {
-            const folgas = isEscalaPreta
-              ? member.folgasAtualPreta
-              : member.folgasAtualVermelha;
-            const workedYesterday = membersWhoWorkedYesterday.has(member.id)
-              ? "⚠️ Trabalhou ontem"
-              : "✅ Não trabalhou ontem";
+          // sortedMembers.forEach((member, index) => {
+          //   const folgas = isEscalaPreta
+          //     ? member.folgasAtualPreta
+          //     : member.folgasAtualVermelha;
+          //   const workedYesterday = membersWhoWorkedYesterday.has(member.id)
+          //     ? "⚠️ Trabalhou ontem"
+          //     : "✅ Não trabalhou ontem";
 
-            // 🔍 LOG DETALHADO: Mostrar folgas em ambas as escalas para entender melhor
-            const folgasPreta = member.folgasAtualPreta;
-            const folgasVermelha = member.folgasAtualVermelha;
-            const worked24h = membersWho24hYesterday.has(member.id)
-              ? " (24h ontem)"
-              : "";
+          //   // 🔍 LOG DETALHADO: Mostrar folgas em ambas as escalas para entender melhor
+          //   const folgasPreta = member.folgasAtualPreta;
+          //   const folgasVermelha = member.folgasAtualVermelha;
+          //   const worked24h = membersWho24hYesterday.has(member.id)
+          //     ? " (24h ontem)"
+          //     : "";
 
-            console.log(
-              `   ${index + 1}. ${
-                member.nome
-              } - ${folgas} folgas ${escalaType.toLowerCase()} (Preta: ${folgasPreta}, Vermelha: ${folgasVermelha}) - ${workedYesterday}${worked24h}`
-            );
-          });
+          //   console.log(
+          //     `   ${index + 1}. ${
+          //       member.nome
+          //     } - ${folgas} folgas ${escalaType.toLowerCase()} (Preta: ${folgasPreta}, Vermelha: ${folgasVermelha}) - ${workedYesterday}${worked24h}`
+          //   );
+          // });
 
           // Verificar membros que trabalharam dois dias consecutivos na escala vermelha e não podem trabalhar na preta
           const membersWhoWorked2ConsecutiveRed = new Set<string>();
@@ -1550,29 +1550,68 @@ export default function FolgasCreatePage() {
           }
 
           // Separar membros que podem trabalhar dos que devem ficar de folga por restrições
-          const canWorkMembers: any[] = [];
+          // Regra: se amanhã e fdepois de amanhã são vermelha, quem tem a flag de dois dias consecutivos e mais folgas vermelha não pode trabalhar hoje na preta
+          if (isEscalaPreta) {
+            const tomorrow = new Date(currentDate);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const afterTomorrow = new Date(currentDate);
+            afterTomorrow.setDate(afterTomorrow.getDate() + 2);
+            const isTomorrowVermelha = await feriadoManager.isEscalaVermelha(tomorrow);
+            const isAfterTomorrowVermelha = await feriadoManager.isEscalaVermelha(afterTomorrow);
+            if (isTomorrowVermelha && isAfterTomorrowVermelha) {
+              const candidatos = sortedMembers.filter(m => m.doisDiasConsecutivosVermelha);
+              if (candidatos.length > 0) {
+                const maxFolgas = Math.max(...candidatos.map(m => m.folgasAtualVermelha));
+                const escolhidos = candidatos.filter(m => m.folgasAtualVermelha === maxFolgas);
+                // Todos os escolhidos não podem trabalhar hoje na preta
+                escolhidos.forEach(m => membersWhoWorked2ConsecutiveRed.add(m.id));
+              }
+            }
+          }
+          let canWorkMembers: any[] = [];
           const must24hLeaveMembers: any[] = [];
           const mustConsecutiveRedLeaveMembers: any[] = [];
 
-          sortedMembers.forEach((member) => {
+         sortedMembers.forEach((member) => {
             if (membersWho24hYesterday.has(member.id)) {
               must24hLeaveMembers.push(member);
-              // 🔍 LOG: Mostrar restrições 24h
-              console.log(
-                `🚫 ${member.nome} trabalhou 24h ontem - DEVE ficar de folga hoje`
-              );
+              console.log(`🚫 ${member.nome} trabalhou 24h ontem - DEVE ficar de folga hoje`);
             } else if (membersWhoWorked2ConsecutiveRed.has(member.id)) {
-              mustConsecutiveRedLeaveMembers.push(member);
-              // 🔍 LOG: Mostrar restrições dois dias consecutivos
-              console.log(
-                `🚫 ${member.nome} trabalhou dois dias consecutivos vermelha - DEVE ficar de folga hoje`
-              );
+              // Verifica se já ficou 1 dia de folga na preta após os dois dias consecutivos na vermelha
+              if (member.folgasAtualPreta >= 1) {
+                canWorkMembers.push(member);
+              } else {
+                mustConsecutiveRedLeaveMembers.push(member);
+                console.log(`🚫 ${member.nome} impedido por regra dos dois dias consecutivos vermelha - DEVE ficar de folga hoje`);
+              }
             } else {
               canWorkMembers.push(member);
-              // 🔍 LOG: Mostrar quem pode trabalhar
-              console.log(`✅ ${member.nome} PODE trabalhar hoje`);
             }
           });
+
+          // Se é escala preta e há substituição, selecionar o substituto com mais folgas preta
+          if (isEscalaPreta && mustConsecutiveRedLeaveMembers.length > 0 && canWorkMembers.length > 0) {
+            // Ordena por folgas preta (desc), em caso de empate prioriza quem está há mais tempo sem trabalhar
+            let maxFolgasPreta = Math.max(...canWorkMembers.map(m => m.folgasAtualPreta));
+            let empatadosPreta = canWorkMembers.filter(m => m.folgasAtualPreta === maxFolgasPreta);
+            let substitutoFinal = empatadosPreta[0];
+            if (empatadosPreta.length > 1) {
+              // Desempate por ordem alfabética do nome
+              empatadosPreta.sort((a, b) => {
+                const nomeA = (a.nome || "").toLowerCase();
+                const nomeB = (b.nome || "").toLowerCase();
+                if (nomeA < nomeB) return -1;
+                if (nomeA > nomeB) return 1;
+                return 0;
+              });
+              substitutoFinal = empatadosPreta[0];
+              toast.info(
+                `Empate na escala preta entre: ${empatadosPreta.map(m => m.nome || m.id).join(', ')}. Desempate por ordem alfabética do nome.`,
+              );
+            }
+            canWorkMembers = [substitutoFinal, ...canWorkMembers.filter(m => m.id !== substitutoFinal.id)];
+ 
+          }
 
           // LÓGICA ESPECIAL: Dois dias consecutivos na escala vermelha
           let priorityWorkingMembers: any[] = [];
@@ -1617,26 +1656,13 @@ export default function FolgasCreatePage() {
                 );
 
                 if (eligibleMembersForConsecutive.length > 0) {
-                  // Ordenar apenas por folgas na vermelha (já foram excluídos os que trabalharam na preta)
-                  const sortedConsecutiveMembers = eligibleMembersForConsecutive.sort(
-                    (a, b) => {
-                      // 1ª PRIORIDADE: Mais folgas da escala vermelha (decrescente)
-                      const folgasA = a.folgasAtualVermelha;
-                      const folgasB = b.folgasAtualVermelha;
-
-                      if (folgasA !== folgasB) {
-                        return folgasB - folgasA; // Ordem decrescente - mais folgas primeiro
-                      }
-
-                      // 2ª PRIORIDADE: Posição na escala (em caso de empate)
-                      return a.posicaoAtual - b.posicaoAtual;
-                    }
-                  );
-
-                  priorityWorkingMembers = [sortedConsecutiveMembers[0]]; // Apenas o melhor candidato
-                  
+                  // Seleciona quem tem mais folgas vermelha, e em caso de empate, quem aparece primeiro no array (menor index)
+                  let maxFolgas = Math.max(...eligibleMembersForConsecutive.map(m => m.folgasAtualVermelha));
+                  let empatados = eligibleMembersForConsecutive.filter(m => m.folgasAtualVermelha === maxFolgas);
+                  let escolhidoFinal = empatados[0];
+                  priorityWorkingMembers = [escolhidoFinal];
                   // 🔍 LOG: Mostrar critério de seleção para dois dias consecutivos na vermelha
-                  const selectedMember = sortedConsecutiveMembers[0];
+                  const selectedMember = escolhidoFinal;
                   const dayType = isHoliday ? "FERIADO" : (dayOfWeekNumber === 6 ? "SÁBADO" : "DOMINGO");
                   console.log(
                     `🔴 SELECIONADO para DOIS DIAS CONSECUTIVOS VERMELHA (${dayType}): ${selectedMember.nome} - ${selectedMember.folgasAtualVermelha} folgas vermelha (NÃO trabalhou preta ontem)`
