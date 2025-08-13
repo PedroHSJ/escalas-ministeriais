@@ -1,5 +1,7 @@
 "use client";
 
+import { useAuth } from "@/contexts/AuthContext";
+import { useOrganization } from "@/contexts/OrganizationContext";
 import FeriadoManager from "@/utils/feriados";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -21,6 +23,7 @@ interface CalendarData {
     >
   >;
   members: (string | undefined)[];
+  escalaVermelhaMap?: Record<string, boolean>; // Mapa de datas para escala vermelha
 }
 
 interface CalendarTableProps {
@@ -38,6 +41,8 @@ export default function CalendarTable({
   feriadoManager,
   showLegend = true,
 }: CalendarTableProps) {
+  const { userId } = useAuth();
+  const { selectedOrganization } = useOrganization();
   // Função padrão para cores das especializações
   const defaultGetSpecializationColor = (index: number) => {
     const colors = [
@@ -52,7 +57,7 @@ export default function CalendarTable({
   };
 
   const getSpecColor = getSpecializationColor || defaultGetSpecializationColor;
-
+  console.log(calendarData);
   if (!calendarData) {
     return (
       <div className="text-center py-8 text-muted-foreground">
@@ -161,32 +166,21 @@ export default function CalendarTable({
               <th className="border border-gray-300 p-1.5 bg-primary-100 font-bold text-xs sticky left-0 z-20 min-w-[100px] max-w-[140px]">
                 <div className="truncate">Nome</div>
               </th>
-              {calendarData.dates.map(async (date, index) => {
-                // Escala Preta e Vermelha: PRETA = dias de semana, VERMELHA = finais de semana
+              {calendarData.dates.map((date) => {
+                // Usa o mapa precomputado para saber se é escala vermelha
+                const isEscalaVermelha = calendarData.escalaVermelhaMap?.[date];
+                const bgColor = isEscalaVermelha ? "bg-red-600" : "bg-black";
+                const textColor = "text-white";
                 // Função auxiliar para criar data segura
                 const createSafeDate = (dateStr: string) => {
-                  // Se já tem horário ou não é formato YYYY-MM-DD, usar diretamente
                   if (
                     dateStr.includes("T") ||
                     !dateStr.match(/^\d{4}-\d{2}-\d{2}$/)
                   ) {
                     return new Date(dateStr);
                   }
-                  // Caso contrário, adicionar horário para evitar problemas de fuso
                   return new Date(dateStr + "T12:00:00");
                 };
-
-                // const dateObj = createSafeDate(date);
-                // const dayOfWeek = dateObj.getDay(); // 0 = domingo, 6 = sábado
-                // const isWeekend = dayOfWeek === 0 || dayOfWeek === 6; // Domingo ou Sábado
-
-                const isEscalaVermelha = await feriadoManager?.isEscalaVermelha(
-                  date
-                );
-
-                const bgColor = isWeekend ? "bg-red-600" : "bg-black"; // Vermelho para finais de semana, Preto para dias úteis
-                const textColor = "text-white";
-
                 return (
                   <th
                     key={date}
@@ -222,6 +216,13 @@ export default function CalendarTable({
                 </td>
                 {calendarData.dates.map((date) => {
                   const cellData = calendarData.matrix[memberName!]?.[date];
+                  // Corrigir cor do texto para folgas: branco em feriado/fds, preto em dia útil
+                  const isEscalaVermelha = calendarData.escalaVermelhaMap?.[date];
+                  let textColor = cellData?.textColor;
+                  // Se for folga (codigo > 0), ajustar cor do texto conforme escala vermelha
+                  if (cellData && cellData.codigo > 0) {
+                    textColor = isEscalaVermelha ? "#fff" : "#000";
+                  }
                   return (
                     <td
                       key={date}
@@ -233,7 +234,7 @@ export default function CalendarTable({
                       <div
                         className="w-4 h-4 rounded text-xs font-bold flex items-center justify-center mx-auto"
                         style={{
-                          color: cellData?.textColor || "inherit",
+                          color: textColor || "inherit",
                         }}
                       >
                         {cellData?.codigo || 0}

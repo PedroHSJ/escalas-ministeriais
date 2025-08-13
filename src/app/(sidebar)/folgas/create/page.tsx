@@ -167,7 +167,7 @@ export default function FolgasCreatePage() {
 
   // Função para converter escala gerada para formato do CalendarTable
   const getCalendarDataFromGenerated = () => {
-    if (generatedSchedule.length === 0) return null;
+  if (generatedSchedule.length === 0) return null;
 
     // Obter todas as datas únicas - usar formato consistente
     const dates = generatedSchedule
@@ -179,6 +179,26 @@ export default function FolgasCreatePage() {
         return `${year}-${month}-${dayNum}`;
       })
       .sort();
+
+    // Mapear se cada data é escala vermelha (sábado, domingo ou feriado)
+    const escalaVermelhaMap: Record<string, boolean> = {};
+    dates.forEach((dateStr) => {
+      // Buscar o objeto holidayInfo já preenchido pelo FeriadoManager
+      const holiday = holidayInfo[dateStr];
+      let isVermelha = false;
+      if (holiday) {
+        // Se for feriado ou período especial, considerar vermelha
+        isVermelha = holiday.isHoliday || holiday.isSpecialPeriod;
+      }
+      // Se não for feriado, considerar sábado ou domingo
+      if (!isVermelha) {
+        const [year, month, day] = dateStr.split("-").map(Number);
+        const jsDate = new Date(year, month - 1, day);
+        const dayOfWeek = jsDate.getDay();
+        isVermelha = dayOfWeek === 0 || dayOfWeek === 6;
+      }
+      escalaVermelhaMap[dateStr] = isVermelha;
+    });
 
     // Obter todas as especializações únicas
     const specializations = Array.from(
@@ -225,10 +245,9 @@ export default function FolgasCreatePage() {
 
         if (!day) return;
 
-        // Determinar se é escala preta ou vermelha
-        const dayOfWeek = day.date.getDay(); // 0 = domingo, 6 = sábado
-        const isEscalaVermelha = dayOfWeek === 0 || dayOfWeek === 6;
-        const isEscalaPreta = !isEscalaVermelha;
+  // Determinar se é escala preta ou vermelha (considerando feriados e períodos especiais)
+  const isEscalaVermelha = escalaVermelhaMap[dateStr];
+  const isEscalaPreta = !isEscalaVermelha;
 
         const isWorking = day.working.some((w) => w.id === member.id);
         const isOnLeave = day.onLeave.some((l) => l.id === member.id);
@@ -264,7 +283,7 @@ export default function FolgasCreatePage() {
             especializacao: member.especializacaoNome,
             tipo: "folga",
             color: "#fecaca", // Vermelho claro para folga
-            textColor: isEscalaPreta ? "#000000" : "#fff", // texto preto para escala preta, vermelho escuro para escala vermelha
+            textColor: isEscalaPreta ? "#000000" : "#fff", // texto preto para escala preta, branco para escala vermelha
           };
         }
       });
@@ -296,6 +315,7 @@ export default function FolgasCreatePage() {
       specializations,
       matrix: calendarMatrix,
       members: sortedMembers,
+      escalaVermelhaMap,
     };
   };
 
