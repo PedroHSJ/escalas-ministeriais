@@ -111,6 +111,8 @@ const DAYS_OF_WEEK = [
 ];
 
 export default function FolgasCreatePage() {
+  // Estado para erro no input de nome
+  const [nameInputError, setNameInputError] = useState(false);
   const { userId } = useAuth();
   const { selectedOrganization } = useOrganization();
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -2603,7 +2605,13 @@ export default function FolgasCreatePage() {
                 <Input
                   placeholder="Ex: Escala de Folgas Janeiro 2024"
                   value={scaleName}
-                  onChange={(e) => setScaleName(e.target.value)}
+                  onChange={(e) => {
+                    setScaleName(e.target.value);
+                    if (nameInputError && e.target.value.trim()) {
+                      setNameInputError(false);
+                    }
+                  }}
+                  className={nameInputError ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}
                 />
               </div>
 
@@ -3741,13 +3749,21 @@ export default function FolgasCreatePage() {
                     {generatedSchedule.length > 0 && (
                       <>
                         <Button
-                          onClick={saveScale}
-                          disabled={
-                            !scaleName.trim() ||
-                            scaleMembers.length === 0 ||
-                            generatedSchedule.length === 0 ||
-                            loading
-                          }
+                          onClick={() => {
+                            if (!scaleName.trim()) {
+                              toast.error("O nome da escala é obrigatório.");
+                              setNameInputError(true);
+                              return;
+                            }
+                            if (
+                              scaleMembers.length === 0 ||
+                              generatedSchedule.length === 0 ||
+                              loading
+                            ) {
+                              return;
+                            }
+                            saveScale();
+                          }}
                           size="sm"
                         >
                           {loading ? (
