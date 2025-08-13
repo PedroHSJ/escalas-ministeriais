@@ -70,91 +70,24 @@ export default function CalendarTable({
     );
   }
 
+  // Verifica se há mais de um mês nas datas
+  const uniqueMonths = Array.from(
+    new Set(
+      calendarData.dates.map((date) => {
+        const d = new Date(date + "T12:00:00");
+        return d.getMonth() + '-' + d.getFullYear();
+      })
+    )
+  );
+  const showMonth = uniqueMonths.length > 1;
+
   return (
     <div className="space-y-4">
       {/* Legenda das Especializações */}
       {showLegend && calendarData.specializations.length > 0 && (
         <div className="bg-primary p-3 rounded-lg">
           <h4 className="font-medium mb-2 text-sm">Legenda:</h4>
-
-          {/* Legenda da Escala Preta e Vermelha */}
-          <div className="mb-3">
-            <div className="text-xs text-gray-600 mb-1">
-              <strong>Escala Preta e Vermelha:</strong>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <div className="flex items-center gap-1.5 flex-shrink-0">
-                <div className="w-4 h-4 rounded border bg-black flex-shrink-0"></div>
-                <span className="text-xs whitespace-nowrap">
-                  Dias de Semana (Preta)
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5 flex-shrink-0">
-                <div className="w-4 h-4 rounded border bg-red-600 flex-shrink-0"></div>
-                <span className="text-xs whitespace-nowrap">
-                  Finais de Semana (Vermelha)
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Legenda dos Códigos */}
-          <div className="mb-3">
-            <div className="text-xs text-gray-600 mb-1">
-              <strong>Códigos:</strong>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <div className="flex items-center gap-1.5 flex-shrink-0">
-                <div className="w-4 h-4 rounded border text-xs flex items-center justify-center font-bold bg-green-200 flex-shrink-0">
-                  0
-                </div>
-                <span className="text-xs whitespace-nowrap">
-                  Dia Trabalhado
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5 flex-shrink-0">
-                <div className="w-4 h-4 rounded border text-xs flex items-center justify-center font-bold bg-red-200 text-black flex-shrink-0">
-                  1+
-                </div>
-                <span className="text-xs whitespace-nowrap">
-                  Folgas em Dias Úteis (texto preto)
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5 flex-shrink-0">
-                <div className="w-4 h-4 rounded border text-xs flex items-center justify-center font-bold bg-red-200 text-white flex-shrink-0">
-                  1+
-                </div>
-                <span className="text-xs whitespace-nowrap">
-                  Folgas em Finais de Semana e feriados (texto branco)
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Legenda das Especializações */}
-          {calendarData.specializations.length > 0 && (
-            <div>
-              <div className="text-xs text-gray-600 mb-1">
-                <strong>Especializações:</strong>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {calendarData.specializations.map((spec, index) => (
-                  <div
-                    key={spec}
-                    className="flex items-center gap-1.5 flex-shrink-0"
-                  >
-                    <div
-                      className="w-4 h-4 rounded border text-xs flex items-center justify-center font-bold flex-shrink-0"
-                      style={{
-                        backgroundColor: getSpecColor(index + 1),
-                      }}
-                    ></div>
-                    <span className="text-xs whitespace-nowrap">{spec}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* ...existing code... */}
         </div>
       )}
 
@@ -167,11 +100,9 @@ export default function CalendarTable({
                 <div className="truncate">Nome</div>
               </th>
               {calendarData.dates.map((date) => {
-                // Usa o mapa precomputado para saber se é escala vermelha
                 const isEscalaVermelha = calendarData.escalaVermelhaMap?.[date];
                 const bgColor = isEscalaVermelha ? "bg-red-600" : "bg-black";
                 const textColor = "text-white";
-                // Função auxiliar para criar data segura
                 const createSafeDate = (dateStr: string) => {
                   if (
                     dateStr.includes("T") ||
@@ -181,16 +112,22 @@ export default function CalendarTable({
                   }
                   return new Date(dateStr + "T12:00:00");
                 };
+                const safeDate = createSafeDate(date);
                 return (
                   <th
                     key={date}
                     className={`border border-gray-300 p-1 ${bgColor} ${textColor} text-xs min-w-[30px] max-w-[35px]`}
                   >
                     <div className="font-bold text-xs">
-                      {format(createSafeDate(date), "dd")}
+                      {format(safeDate, "dd")}
+                      {showMonth && (
+                        <span style={{ fontSize: 9, display: "block", lineHeight: 1 }}>
+                          {format(safeDate, "MM")}
+                        </span>
+                      )}
                     </div>
                     <div className="text-[9px] leading-tight">
-                      {format(createSafeDate(date), "EEE", {
+                      {format(safeDate, "EEE", {
                         locale: ptBR,
                       })
                         .toUpperCase()
@@ -216,10 +153,8 @@ export default function CalendarTable({
                 </td>
                 {calendarData.dates.map((date) => {
                   const cellData = calendarData.matrix[memberName!]?.[date];
-                  // Corrigir cor do texto para folgas: branco em feriado/fds, preto em dia útil
                   const isEscalaVermelha = calendarData.escalaVermelhaMap?.[date];
                   let textColor = cellData?.textColor;
-                  // Se for folga (codigo > 0), ajustar cor do texto conforme escala vermelha
                   if (cellData && cellData.codigo > 0) {
                     textColor = isEscalaVermelha ? "#fff" : "#000";
                   }
