@@ -90,7 +90,7 @@ export function NavMain({
                                           asChild
                                           isActive={nestedItem.isActive}
                                         >
-                                          <NavigationLink href={nestedItem.url}>
+                                          <NavigationLink href={nestedItem.url} tabIndex={nestedItem.isActive ? -1 : 0} aria-disabled={nestedItem.isActive} style={nestedItem.isActive ? { pointerEvents: "none", opacity: 0.6 } : {}}>
                                             {nestedItem.title}
                                           </NavigationLink>
                                         </SidebarMenuSubButton>
@@ -104,7 +104,7 @@ export function NavMain({
                                 asChild
                                 isActive={subItem.isActive}
                               >
-                                <NavigationLink href={subItem.url}>
+                                <NavigationLink href={subItem.url} tabIndex={subItem.isActive ? -1 : 0} aria-disabled={subItem.isActive} style={subItem.isActive ? { pointerEvents: "none", opacity: 0.6 } : {}}>
                                   {subItem.title}
                                 </NavigationLink>
                               </SidebarMenuSubButton>
@@ -118,7 +118,7 @@ export function NavMain({
               </Collapsible>
             ) : (
               <SidebarMenuButton asChild isActive={item.isActive}>
-                <NavigationLink href={item.url}>
+                <NavigationLink href={item.url} tabIndex={item.isActive ? -1 : 0} aria-disabled={item.isActive} style={item.isActive ? { pointerEvents: "none", opacity: 0.6 } : {}}>
                   {item.icon && <item.icon />}
                   <span>{item.title}</span>
                 </NavigationLink>
