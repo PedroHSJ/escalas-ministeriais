@@ -3250,7 +3250,7 @@ export default function FolgasCreatePage() {
                           </Tooltip>
                         </TooltipProvider>
                       </label>
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 gap-2">
                         {DAYS_OF_WEEK.map((day) => (
                           <div
                             key={day.key}
