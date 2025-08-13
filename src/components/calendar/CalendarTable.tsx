@@ -85,15 +85,93 @@ export default function CalendarTable({
     <div className="space-y-4">
       {/* Legenda das Especializações */}
       {showLegend && calendarData.specializations.length > 0 && (
-        <div className="bg-primary p-3 rounded-lg">
+        <div className="bg-secondary p-3 rounded-lg">
           <h4 className="font-medium mb-2 text-sm">Legenda:</h4>
-          {/* ...existing code... */}
+
+          {/* Legenda da Escala Preta e Vermelha */}
+          <div className="mb-3">
+            <div className="text-xs text-primary mb-1">
+              <strong>Escala Preta e Vermelha:</strong>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <div className="w-4 h-4 rounded border bg-black flex-shrink-0"></div>
+                <span className="text-xs whitespace-nowrap">
+                  Dias de Semana (Preta)
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <div className="w-4 h-4 rounded border bg-red-600 flex-shrink-0"></div>
+                <span className="text-xs whitespace-nowrap">
+                  Finais de Semana (Vermelha)
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Legenda dos Códigos */}
+          <div className="mb-3">
+            <div className="text-xs text-primary mb-1">
+              <strong>Códigos:</strong>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <div className="w-4 h-4 rounded border text-xs flex items-center justify-center font-bold bg-green-200 flex-shrink-0 text-black">
+                  0
+                </div>
+                <span className="text-xs whitespace-nowrap">
+                  Dia Trabalhado
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <div className="w-4 h-4 rounded border text-xs flex items-center justify-center font-bold bg-red-200 text-black flex-shrink-0">
+                  1+
+                </div>
+                <span className="text-xs whitespace-nowrap">
+                  Folgas em Dias Úteis
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <div className="w-4 h-4 rounded border text-xs flex items-center justify-center font-bold bg-red-200 text-red-700 flex-shrink-0">
+                  1+
+                </div>
+                <span className="text-xs whitespace-nowrap">
+                  Folgas em Finais de Semana e feriados
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Legenda das Especializações */}
+          {calendarData.specializations.length > 0 && (
+            <div>
+              <div className="text-xs text-primary mb-1">
+                <strong>Especializações:</strong>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {calendarData.specializations.map((spec, index) => (
+                  <div
+                    key={spec}
+                    className="flex items-center gap-1.5 flex-shrink-0"
+                  >
+                    <div
+                      className="w-4 h-4 rounded border text-xs flex items-center justify-center font-bold flex-shrink-0"
+                      style={{
+                        backgroundColor: getSpecColor(index + 1),
+                      }}
+                    ></div>
+                    <span className="text-xs whitespace-nowrap">{spec}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
       {/* Tabela Calendário */}
       <div className="border rounded-lg overflow-x-auto">
-        <table className="w-full border-collapse border border-gray-300">
+        <table className="w-full border-collapse border rounded-3xl">
           <thead>
             <tr>
               <th className="border border-gray-300 p-1.5 bg-primary-100 font-bold text-xs sticky left-0 z-20 min-w-[100px] max-w-[140px]">
@@ -121,7 +199,13 @@ export default function CalendarTable({
                     <div className="font-bold text-xs">
                       {format(safeDate, "dd")}
                       {showMonth && (
-                        <span style={{ fontSize: 9, display: "block", lineHeight: 1 }}>
+                        <span
+                          style={{
+                            fontSize: 9,
+                            display: "block",
+                            lineHeight: 1,
+                          }}
+                        >
                           {format(safeDate, "MM")}
                         </span>
                       )}
@@ -147,13 +231,14 @@ export default function CalendarTable({
                     backgroundColor: getMemberSpecializationColor(memberName!),
                   }}
                 >
-                  <div className="truncate" title={memberName}>
+                  <div className="truncate text-black" title={memberName}>
                     {memberName}
                   </div>
                 </td>
                 {calendarData.dates.map((date) => {
                   const cellData = calendarData.matrix[memberName!]?.[date];
-                  const isEscalaVermelha = calendarData.escalaVermelhaMap?.[date];
+                  const isEscalaVermelha =
+                    calendarData.escalaVermelhaMap?.[date];
                   let textColor = cellData?.textColor;
                   if (cellData && cellData.codigo > 0) {
                     textColor = isEscalaVermelha ? "#fff" : "#000";
@@ -167,10 +252,16 @@ export default function CalendarTable({
                       }}
                     >
                       <div
-                        className="w-4 h-4 rounded text-xs font-bold flex items-center justify-center mx-auto"
-                        style={{
-                          color: textColor || "inherit",
-                        }}
+                        className={`w-4 h-4 rounded text-xs font-bold flex items-center justify-center mx-auto ${
+                          cellData?.codigo == 0
+                            ? "text-black"
+                            : isEscalaVermelha
+                            ? "text-red-700"
+                            : "text-black"
+                        }`}
+                        // style={{
+                        //   color: textColor || "inherit",
+                        // }}
                       >
                         {cellData?.codigo || 0}
                       </div>
