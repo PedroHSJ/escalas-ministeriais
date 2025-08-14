@@ -82,7 +82,7 @@ export default function CalendarTable({
   const showMonth = uniqueMonths.length > 1;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 max-w-full">
       {/* Legenda das Especializações */}
       {showLegend && calendarData.specializations.length > 0 && (
         <div className="bg-secondary p-3 rounded-lg">
@@ -97,13 +97,13 @@ export default function CalendarTable({
               <div className="flex items-center gap-1.5 flex-shrink-0">
                 <div className="w-4 h-4 rounded border bg-black flex-shrink-0"></div>
                 <span className="text-xs whitespace-nowrap">
-                  Dias de Semana (Preta)
+                  Dias de semana (Preta)
                 </span>
               </div>
               <div className="flex items-center gap-1.5 flex-shrink-0">
                 <div className="w-4 h-4 rounded border bg-red-600 flex-shrink-0"></div>
                 <span className="text-xs whitespace-nowrap">
-                  Finais de Semana (Vermelha)
+                  Finais de semana e feriados (Vermelha)
                 </span>
               </div>
             </div>
@@ -170,11 +170,11 @@ export default function CalendarTable({
       )}
 
       {/* Tabela Calendário */}
-      <div className="border rounded-lg overflow-x-auto">
+      <div className="border rounded-lg overflow-x-auto max-w-full">
         <table className="w-full border-collapse border rounded-3xl">
           <thead>
             <tr>
-              <th className="border border-gray-300 p-1.5 bg-primary-100 font-bold text-xs sticky left-0 z-20 min-w-[100px] max-w-[140px]">
+              <th className="border border-gray-300 p-1.5 bg-secondary font-bold text-xs sticky left-0 z-20 min-w-[100px] max-w-[140px]">
                 <div className="truncate">Nome</div>
               </th>
               {calendarData.dates.map((date) => {

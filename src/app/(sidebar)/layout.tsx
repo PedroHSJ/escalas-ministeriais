@@ -27,42 +27,46 @@ export default function RootLayout({
           <NavigationLoading />
           <OrganizationProvider>
             <SidebarProvider>
-              <AppSidebar />
-              <SidebarInset>
-                <header
-                  className="flex h-16 shrink-0 items-center justify-between gap-2 
-                    transition-[width,height] ease-linear 
-                    group-has-data-[collapsible=icon]/sidebar-wrapper:h-12
-                    border-b border-border
-                    "
-                >
-                  <div className="flex items-center gap-2 px-4">
-                    <SidebarTrigger className="-ml-1" />
-                    <Separator
-                      orientation="vertical"
-                      className="mr-2 data-[orientation=vertical]:h-4"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2 px-4">
-                    <VersionDisplay variant="badge" showDetails={true} />
-                    <ModeToggle />
-                  </div>
-                </header>
-                <Suspense
-                  fallback={
-                    <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-                      <div className="grid auto-rows-min gap-4 md:grid-cols-3">
-                        <div className="bg-muted/50 aspect-video rounded-xl" />
-                        <div className="bg-muted/50 aspect-video rounded-xl" />
-                        <div className="bg-muted/50 aspect-video rounded-xl" />
+              <div className="flex flex-row w-full min-h-screen">
+                <AppSidebar />
+                <div className="flex-1 min-w-0 flex flex-col">
+                  <SidebarInset>
+                    <header
+                      className="flex h-16 shrink-0 items-center justify-between gap-2
+                        transition-[width,height] ease-linear
+                        group-has-data-[collapsible=icon]/sidebar-wrapper:h-12
+                        border-b border-border
+                        sticky top-0 z-30 bg-background"
+                    >
+                      <div className="flex items-center gap-2 px-4">
+                        <SidebarTrigger className="-ml-1" />
+                        <Separator
+                          orientation="vertical"
+                          className="mr-2 data-[orientation=vertical]:h-4"
+                        />
                       </div>
-                      <div className="bg-muted/50 min-h-[100vh] flex-1 rounded-xl md:min-h-min" />
-                    </div>
-                  }
-                >
-                  <div className="p-6">{children}</div>
-                </Suspense>
-              </SidebarInset>
+                      <div className="flex items-center gap-2 px-4">
+                        <VersionDisplay variant="badge" showDetails={true} />
+                        <ModeToggle />
+                      </div>
+                    </header>
+                    <Suspense
+                      fallback={
+                        <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+                          <div className="grid auto-rows-min gap-4 md:grid-cols-3">
+                            <div className="bg-muted/50 aspect-video rounded-xl" />
+                            <div className="bg-muted/50 aspect-video rounded-xl" />
+                            <div className="bg-muted/50 aspect-video rounded-xl" />
+                          </div>
+                          <div className="bg-muted/50 min-h-[100vh] flex-1 rounded-xl md:min-h-min" />
+                        </div>
+                      }
+                    >
+                      <div className="p-6 min-w-0">{children}</div>
+                    </Suspense>
+                  </SidebarInset>
+                </div>
+              </div>
             </SidebarProvider>
           </OrganizationProvider>
         </NavigationProvider>

@@ -720,7 +720,6 @@ export default function FolgasCreatePage() {
               folgasAtualPreta: stats.folgasPreta,
               folgasIniciaisVermelha: stats.folgasVermelha,
               folgasAtualVermelha: stats.folgasVermelha,
-              posicaoAtual: importedMembers.length + scaleMembers.length + 1,
               ativo: true,
               especializacaoId: especializacaoPrincipal?.especializacoes?.id,
               especializacaoNome:
@@ -840,7 +839,6 @@ export default function FolgasCreatePage() {
       folgasAtualPreta: 0,
       folgasIniciaisVermelha: 0,
       folgasAtualVermelha: 0,
-      posicaoAtual: scaleMembers.length + 1,
       ativo: true,
       especializacaoId: especializacaoId,
       especializacaoNome: especialização?.nome,
@@ -916,7 +914,6 @@ export default function FolgasCreatePage() {
         folgasAtualPreta: 0,
         folgasIniciaisVermelha: 0,
         folgasAtualVermelha: 0,
-        posicaoAtual: scaleMembers.length + addedCount + 1,
         ativo: true,
         especializacaoId: selectedSpecId,
         especializacaoNome: especialização?.nome,
@@ -988,7 +985,6 @@ export default function FolgasCreatePage() {
         folgasAtualPreta: 0,
         folgasIniciaisVermelha: 0,
         folgasAtualVermelha: 0,
-        posicaoAtual: scaleMembers.length + addedCount + 1,
         ativo: true,
         especializacaoId: especializacaoId,
         especializacaoNome: especialização.nome,
@@ -2164,7 +2160,6 @@ export default function FolgasCreatePage() {
         integrante_id: member.id,
         folgas_iniciais: member.folgasIniciais,
         folgas_atuais: member.folgasAtuais,
-        posicao_atual: member.posicaoAtual,
         ativo: member.ativo,
         apenas_contabiliza_folgas: member.apenasContabilizaFolgas || false,
       }));
@@ -3406,18 +3401,15 @@ export default function FolgasCreatePage() {
                     {scaleMembers.map((member) => (
                       <div
                         key={member.id}
-                        className={`flex justify-between items-center p-3 rounded ${
+                        className={`flex justify-between items-center p-3 rounded-2xl ${
                           member.apenasContabilizaFolgas ? "" : "bg-muted/50"
                         }`}
                       >
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
-                            <span className="font-medium">{member.nome}</span>
-                            <Badge variant="outline">
-                              Posição {member.posicaoAtual}
-                            </Badge>
+                            <span className="font-medium">{member.nome}</span>                     
                             {member.especializacaoNome && (
-                              <Badge variant="secondary">
+                              <Badge variant="outline">
                                 {member.especializacaoNome}
                               </Badge>
                             )}
@@ -4005,8 +3997,7 @@ export default function FolgasCreatePage() {
               <div className="print-summary-grid">
                 {scaleMembers.map((member, index) => (
                   <div key={member.id} style={{ marginBottom: "5px" }}>
-                    <strong>{member.nome}</strong> - Posição:{" "}
-                    {member.posicaoAtual} | Folgas iniciais:{" "}
+                    <strong>{member.nome}</strong> | Folgas iniciais:{" "}
                     {member.folgasIniciais} | Folgas finais:{" "}
                     {member.folgasAtuais}
                     <br />

@@ -50,12 +50,17 @@ import {
 import { ObservacaoTemplate } from "@/types/observacoes";
 import CalendarTable from "@/components/calendar/CalendarTable";
 import { NavigationButton } from "@/components/ui/navigation-button";
+import FeriadoManager from "@/utils/feriados";
+import { useAuth } from "@/contexts/AuthContext";
+import { useOrganization } from "@/contexts/OrganizationContext";
+
 
 export default function FolgasViewPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const scaleId = searchParams.get("id");
 
+  // Todos os hooks de estado devem ser declarados no topo, antes de qualquer condicional
   const [scale, setScale] = useState<EscalaFolgaType | null>(null);
   const [participations, setParticipations] = useState<
     EscalaFolgaParticipacaoType[]
@@ -73,6 +78,9 @@ export default function FolgasViewPage() {
   const [printFullPeriod, setPrintFullPeriod] = useState(true);
   const [observacaoTemplate, setObservacaoTemplate] =
     useState<ObservacaoTemplate | null>(null);
+  const [calendarData, setCalendarData] = useState<any>(null);
+  const { userId } = useAuth();
+  const { selectedOrganization } = useOrganization();
 
   const fetchScale = async () => {
     if (!scaleId) {
@@ -154,8 +162,7 @@ export default function FolgasViewPage() {
           `
           )
           .eq("escala_folga_id", scaleId)
-          .eq("ativo", true)
-          .order("posicao_atual", { ascending: true });
+          .eq("ativo", true);
 
       if (participationsError) throw participationsError;
 
@@ -222,22 +229,19 @@ export default function FolgasViewPage() {
     return grouped;
   };
 
-  // Nova função para organizar dados no formato de calendário
-  const getCalendarData = () => {
+  // Função assíncrona para organizar dados no formato de calendário, incluindo feriados
+  const getCalendarData = async () => {
     if (assignments.length === 0 || participations.length === 0) return null;
 
-    // Obter todas as datas únicas - garantir formato consistente
     const dates = Array.from(
       new Set(
         assignments.map((a) => {
-          // Se a data já é uma string no formato YYYY-MM-DD, usar diretamente
           if (
             typeof a.data === "string" &&
             a.data.match(/^\d{4}-\d{2}-\d{2}$/)
           ) {
             return a.data;
           }
-          // Caso contrário, converter para o formato correto
           const dateObj = new Date(a.data);
           const year = dateObj.getFullYear();
           const month = String(dateObj.getMonth() + 1).padStart(2, "0");
@@ -247,16 +251,27 @@ export default function FolgasViewPage() {
       )
     ).sort();
 
-    // Obter todas as especializações únicas e ordená-las
+    const feriadoManager = new FeriadoManager(
+      selectedOrganization?.id || "",
+      userId
+    );
+
+    // Preencher o mapa de escala vermelha (finais de semana e feriados)
+    const escalaVermelhaMap: Record<string, boolean> = {};
+    for (const date of dates) {
+      const dateObj = new Date(date + "T12:00:00");
+      // Aguarda a verificação do FeriadoManager
+      escalaVermelhaMap[date] = await feriadoManager.isEscalaVermelha(dateObj);
+    }
+
     const specializations = Array.from(
       new Set(
         assignments
           .filter((a) => a.especializacao?.nome)
           .map((a) => a.especializacao!.nome)
       )
-    ).sort(); // Ordenar alfabeticamente
+    ).sort();
 
-    // Criar matriz de dados: integrante x data
     const calendarMatrix: Record<
       string,
       Record<
@@ -271,62 +286,43 @@ export default function FolgasViewPage() {
       >
     > = {};
 
-    // Inicializar matriz para cada membro
     participations.forEach((p) => {
       if (p.integrante?.nome) {
         const memberName = p.integrante.nome;
-        const tipoParticipacao = p.tipo_participacao;
         calendarMatrix[memberName] = {};
-
-        // Contadores separados para cada tipo de escala
         let consecutiveDaysOffPreta = 0;
         let consecutiveDaysOffVermelha = 0;
-
         dates.forEach((date) => {
-          // Determinar se é escala preta ou vermelha
-          // Criar data de forma segura para evitar problemas de fuso horário
-          const dateObj = new Date(date + "T12:00:00"); // Adicionar horário para evitar UTC offset
-          const dayOfWeek = dateObj.getDay(); // 0 = domingo, 6 = sábado
-          const isEscalaVermelha = dayOfWeek === 0 || dayOfWeek === 6; // Sábado e Domingo
-          const isEscalaPreta = !isEscalaVermelha; // Segunda a Sexta
-
-          // Buscar atribuição de trabalho para este membro nesta data
+          const isEscalaVermelha = escalaVermelhaMap[date];
+          const isEscalaPreta = !isEscalaVermelha;
           const workAssignment = assignments.find(
             (a) =>
               a.integrante?.nome === memberName &&
               a.data === date &&
               a.tipo_atribuicao === "trabalho"
           );
-
-          // Buscar atribuição de folga para este membro nesta data
           const leaveAssignment = assignments.find(
             (a) =>
               a.integrante?.nome === memberName &&
               a.data === date &&
               a.tipo_atribuicao === "folga"
           );
-
           if (workAssignment) {
-            // Dia de trabalho - resetar apenas o contador da escala correspondente
             if (isEscalaPreta) {
               consecutiveDaysOffPreta = 0;
             } else {
               consecutiveDaysOffVermelha = 0;
             }
-
             const especializacaoNome =
               workAssignment.especializacao?.nome || workAssignment.observacao;
-
             calendarMatrix[memberName][date] = {
               codigo: 0,
               especializacao: especializacaoNome,
               tipo: "trabalho",
-              color: "#bbf7d0", // verde claro para trabalho
+              color: "#bbf7d0",
             };
           } else if (leaveAssignment) {
-            // Dia de folga - incrementar contador da escala correspondente
             let codigoFolga: number;
-
             if (isEscalaPreta) {
               consecutiveDaysOffPreta++;
               codigoFolga = consecutiveDaysOffPreta;
@@ -334,25 +330,21 @@ export default function FolgasViewPage() {
               consecutiveDaysOffVermelha++;
               codigoFolga = consecutiveDaysOffVermelha;
             }
-
             calendarMatrix[memberName][date] = {
               codigo: codigoFolga,
               tipo: "folga",
-              color: "#fecaca", // vermelho claro para todas as folgas
-              textColor: isEscalaPreta ? "#000000" : "#fff", // texto preto para escala preta, vermelho escuro para escala vermelha
+              color: "#fecaca",
+              textColor: isEscalaPreta ? "#000000" : "#fff",
             };
           }
-          // Se não há nem trabalho nem folga, não adiciona entrada para este dia
         });
       }
     });
 
-    // Ordenar membros por especialização e depois alfabeticamente
     const sortedMembers = participations
       .map((p) => p.integrante?.nome)
-      .filter((name): name is string => Boolean(name)) // Type guard para garantir que são strings
+      .filter((name): name is string => Boolean(name))
       .sort((a, b) => {
-        // Encontrar especialização de cada membro
         const getSpecializacao = (memberName: string) => {
           const assignment = assignments.find(
             (assign) =>
@@ -365,15 +357,11 @@ export default function FolgasViewPage() {
             "Sem Especialização"
           );
         };
-
         const specA = getSpecializacao(a);
         const specB = getSpecializacao(b);
-
-        // Primeiro ordenar por especialização
         if (specA !== specB) {
           return specA.localeCompare(specB);
         }
-        // Depois ordenar alfabeticamente dentro da mesma especialização
         return a.localeCompare(b);
       });
 
@@ -382,6 +370,7 @@ export default function FolgasViewPage() {
       specializations,
       matrix: calendarMatrix,
       members: sortedMembers,
+      escalaVermelhaMap,
     };
   };
 
@@ -426,9 +415,9 @@ export default function FolgasViewPage() {
     return "#f3f4f6"; // cor padrão se não tiver especialização
   };
 
-  const handlePrintClick = () => {
+  const handlePrintClick = async () => {
     // Inicializar as datas com o período completo disponível
-    const calendarData = getCalendarData();
+    const calendarData = await getCalendarData();
     if (calendarData && calendarData.dates.length > 0) {
       setPrintStartDate(calendarData.dates[0]);
       setPrintEndDate(calendarData.dates[calendarData.dates.length - 1]);
@@ -465,7 +454,7 @@ export default function FolgasViewPage() {
     setPrintFullPeriod(true);
   };
 
-  const printScale = (
+  const printScale = async (
     withSignature: boolean = false,
     signerName: string = "",
     signerTitle: string = "",
@@ -481,7 +470,7 @@ export default function FolgasViewPage() {
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
 
-    const calendarData = getCalendarData();
+    const calendarData = await getCalendarData();
     if (!calendarData) {
       console.error("Dados do calendário não disponíveis");
       return;
@@ -851,6 +840,17 @@ export default function FolgasViewPage() {
     };
   };
 
+
+  useEffect(() => {
+    (async () => {
+      const data = await getCalendarData();
+      setCalendarData(data);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assignments, participations]);
+
+  const groupedAssignments = groupAssignmentsByDay();
+
   if (loading) {
     return (
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
@@ -878,9 +878,6 @@ export default function FolgasViewPage() {
       </div>
     );
   }
-
-  const groupedAssignments = groupAssignmentsByDay();
-  const calendarData = getCalendarData();
 
   return (
     <Suspense
