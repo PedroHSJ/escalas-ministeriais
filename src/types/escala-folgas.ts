@@ -24,7 +24,6 @@ export interface EscalaFolgaParticipacaoType {
   integrante_id: string;
   folgas_iniciais: number;
   folgas_atuais: number;
-  posicao_atual: number;
   ativo: boolean;
   apenas_contabiliza_folgas?: boolean; // Para integrantes de férias/licença
   tipo_participacao?: TipoParticipacaoEscala; // Tipo de participação na escala
@@ -65,7 +64,6 @@ export interface EscalaFolgaMember {
   folgasAtualPreta: number; // Folgas atuais para dias de semana (escala preta)
   folgasIniciaisVermelha: number; // Folgas iniciais para finais de semana (escala vermelha)
   folgasAtualVermelha: number; // Folgas atuais para finais de semana (escala vermelha)
-  posicaoAtual: number;
   ativo: boolean;
   especializacaoId?: string;
   especializacaoNome?: string;

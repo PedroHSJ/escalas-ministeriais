@@ -108,7 +108,6 @@ CREATE TABLE public.escala_folgas_participacoes (
   integrante_id uuid NOT NULL,
   folgas_iniciais integer NOT NULL DEFAULT 0, -- número de folgas que a pessoa tinha no início da escala
   folgas_atuais integer NOT NULL DEFAULT 0, -- número de folgas atuais da pessoa
-  posicao_atual integer NOT NULL DEFAULT 1, -- posição atual na rotação (1, 2, 3, etc.)
   ativo boolean NOT NULL DEFAULT true, -- se está ativo na escala
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT escala_folgas_participacoes_pkey PRIMARY KEY (id),
