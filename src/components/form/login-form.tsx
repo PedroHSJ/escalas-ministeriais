@@ -143,7 +143,7 @@ export function LoginForm() {
           </svg>
           {loading ? "Carregando..." : "Continuar com Google"}
         </Button>
-        <div className="text-center text-sm mt-2">
+        <div className="text-center text-xs mt-2">
           Não tem uma conta?{" "}
           <span
             className="underline underline-offset-4 cursor-pointer"
