@@ -10,7 +10,18 @@ interface AuthContextType {
   userId: string;
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
+  signInWithEmail: (email: string, password: string) => Promise<void>;
+  signUpWithEmail: (
+    email: string,
+    password: string,
+    options?: object
+  ) => Promise<{
+    user: User | null;
+    session: Session | null;
+  }>;
+  linkWithEmail: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  sendPasswordResetEmail: (email: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -29,7 +40,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (process.env.NODE_ENV === "development") {
       // No desenvolvimento, criar um usuário mock
       const mockUser = {
-        id: "",
+        id: "d58c420f-7db1-42e9-b040-e1d038ef79af",
         email: "dev@example.com",
         user_metadata: {
           full_name: "Usuário Desenvolvimento",
@@ -134,14 +145,70 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Login com e-mail e senha
+  const signInWithEmail = async (email: string, password: string) => {
+    setLoading(true);
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    setLoading(false);
+    if (error) {
+      console.log(error);
+      throw error;
+    }
+    await fetchSession();
+  };
+
+  // Cadastro com e-mail e senha
+  const signUpWithEmail = async (
+    email: string,
+    password: string,
+    options?: object
+  ) => {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options,
+    });
+    if (error) throw error;
+    return data;
+  };
+
+  // Vincular e-mail/senha à conta autenticada (link provider)
+  const linkWithEmail = async (email: string, password: string) => {
+    if (!user) throw new Error("Usuário não autenticado");
+    setLoading(true);
+    // O Supabase não tem um método direto, mas podemos usar updateUser para adicionar email/senha
+    const { error } = await supabase.auth.updateUser({ email, password });
+    setLoading(false);
+    if (error) throw error;
+    await fetchSession();
+  };
+
   const value = {
     user,
     session,
     userId,
     loading,
     signInWithGoogle,
+    signInWithEmail,
+    signUpWithEmail,
+    linkWithEmail,
     signOut,
+    sendPasswordResetEmail,
   };
+
+  // Enviar e-mail de redefinição de senha
+  async function sendPasswordResetEmail(email: string): Promise<void> {
+    setLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    console.log("sendPasswordResetEmail", email, error);
+    setLoading(false);
+    if (error) throw error;
+  }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
