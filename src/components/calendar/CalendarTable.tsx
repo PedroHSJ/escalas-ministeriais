@@ -57,7 +57,6 @@ export default function CalendarTable({
   };
 
   const getSpecColor = getSpecializationColor || defaultGetSpecializationColor;
-  console.log(calendarData);
   if (!calendarData) {
     return (
       <div className="text-center py-8 text-muted-foreground">
@@ -75,12 +74,12 @@ export default function CalendarTable({
     new Set(
       calendarData.dates.map((date) => {
         const d = new Date(date + "T12:00:00");
-        return d.getMonth() + '-' + d.getFullYear();
+        return d.getMonth() + "-" + d.getFullYear();
       })
     )
   );
-  const showMonth = uniqueMonths.length > 1;
-
+  //const showMonth = uniqueMonths.length > 1;
+  const showMonth = true; // Forçando para sempre mostrar o mês
   return (
     <div className="space-y-4 max-w-full">
       {/* Legenda das Especializações */}

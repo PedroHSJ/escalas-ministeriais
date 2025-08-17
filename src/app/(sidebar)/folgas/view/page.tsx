@@ -11,7 +11,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -27,18 +26,17 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   ArrowLeft,
-  Calendar,
   PrinterIcon,
   Users,
   Clock,
   Building2,
+  Calendar as LucideCalendar,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -53,9 +51,23 @@ import { NavigationButton } from "@/components/ui/navigation-button";
 import FeriadoManager from "@/utils/feriados";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
-
+import { Field, Form, Formik } from "formik";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Calendar } from "@/components/ui/calendar";
+import * as Yup from "yup";
+import { toast } from "sonner";
 
 export default function FolgasViewPage() {
+  // Estado global para pareamento das trocas (fora do Formik)
+  const [swapPairs, setSwapPairs] = useState<{ from: string; to: string }[]>(
+    []
+  );
   const searchParams = useSearchParams();
   const router = useRouter();
   const scaleId = searchParams.get("id");
@@ -70,6 +82,8 @@ export default function FolgasViewPage() {
   );
   const [loading, setLoading] = useState(true);
   const [showPrintDialog, setShowPrintDialog] = useState(false);
+  const [showChangeDialog, setShowChangeDialog] = useState(false);
+  const [swapAlsoLeaves, setSwapAlsoLeaves] = useState(true); // nova flag
   const [signatureName, setSignatureName] = useState("");
   const [signatureTitle, setSignatureTitle] = useState("");
   const [includeSignature, setIncludeSignature] = useState(false);
@@ -81,6 +95,20 @@ export default function FolgasViewPage() {
   const [calendarData, setCalendarData] = useState<any>(null);
   const { userId } = useAuth();
   const { selectedOrganization } = useOrganization();
+  const [members, setMembers] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    if (participations.length > 0) {
+      setMembers(
+        participations
+          .filter((p) => p.integrante?.id && p.integrante?.nome)
+          .map((p) => ({
+            id: p.integrante!.id,
+            name: p.integrante!.nome,
+          }))
+      );
+    }
+  }, [participations]);
 
   const fetchScale = async () => {
     if (!scaleId) {
@@ -462,7 +490,7 @@ export default function FolgasViewPage() {
     endDate: string | null = null
   ) => {
     if (!scale) {
-      console.error("Escala não disponível para impressão");
+      toast.error("Escala não disponível para impressão");
       return;
     }
 
@@ -503,9 +531,6 @@ export default function FolgasViewPage() {
         ? dynamicSpecializations
         : ["Cassineiro", "Cozinheiro", "Copeiro", "Permanência"];
 
-    console.log("Especializações encontradas:", dynamicSpecializations);
-    console.log("Especializações que serão usadas:", specializations);
-
     // Criar cabeçalho da tabela
     headerRow = `
       <tr>
@@ -517,6 +542,43 @@ export default function FolgasViewPage() {
     });
     headerRow += "</tr>";
 
+    // BUSCANDO TROCAS
+    const trocas = await supabase
+      .from("escala_folgas_trocas")
+      .select("*")
+      .eq("escala_folga_id", scaleId);
+    if (trocas.error) {
+      toast.error("Erro ao buscar trocas: " + trocas.error.message);
+      return;
+    }
+
+    // Cria um Map para associar trocas por data e integrante
+    // trocasPorData: Map<data, Map<integranteOriginal, integranteTrocado>>
+    const trocasPorData = new Map();
+    if (trocas.data && trocas.data.length > 0) {
+      trocas.data.forEach((troca) => {
+        if (
+          troca.data1 &&
+          troca.integrante1_id &&
+          troca.data2 &&
+          troca.integrante2_id
+        ) {
+          // data1: integrante1 -> integrante2
+          if (!trocasPorData.has(troca.data1))
+            trocasPorData.set(troca.data1, new Map());
+          trocasPorData
+            .get(troca.data1)
+            .set(troca.integrante1_id, troca.integrante2_id);
+          // data2: integrante2 -> integrante1
+          if (!trocasPorData.has(troca.data2))
+            trocasPorData.set(troca.data2, new Map());
+          trocasPorData
+            .get(troca.data2)
+            .set(troca.integrante2_id, troca.integrante1_id);
+        }
+      });
+    }
+
     // Criar linhas da tabela organizadas por data
     const dates = filteredDates;
     dates.forEach((date) => {
@@ -524,18 +586,9 @@ export default function FolgasViewPage() {
       const formattedDate = format(dateObj, "dd/MM", { locale: ptBR });
       const dayOfWeek = format(dateObj, "EEE", { locale: ptBR }).toUpperCase();
 
-      // Debug: verificar todas as atribuições para esta data
+      // Filtra todas as atribuições de trabalho para esta data
       const allWorkingOnDate = assignments.filter(
         (a) => a.data === date && a.tipo_atribuicao === "trabalho"
-      );
-
-      console.log(
-        `Data ${formattedDate}:`,
-        allWorkingOnDate.map((a) => ({
-          nome: a.integrante?.nome,
-          especialização: a.especializacao?.nome,
-          observacao: a.observacao,
-        }))
       );
 
       let row = `
@@ -552,7 +605,6 @@ export default function FolgasViewPage() {
       );
 
       if (!hasSpecializations && allWorkingOnDate.length > 0) {
-        // Distribuir pessoas sem especialização pelas colunas
         const membersPerColumn = Math.ceil(
           allWorkingOnDate.length / specializations.length
         );
@@ -563,17 +615,30 @@ export default function FolgasViewPage() {
             startIndex + membersPerColumn,
             allWorkingOnDate.length
           );
-          const workingMembers = allWorkingOnDate.slice(startIndex, endIndex);
-
-          const memberNames = workingMembers.map((assignment) => {
-            const nome = assignment.integrante?.nome || "";
-            return nome.toUpperCase();
-          });
+          // Aplica trocas: para cada integrante, verifica se há troca para esta data
+          const workingMembers = allWorkingOnDate
+            .slice(startIndex, endIndex)
+            .map((assignment) => {
+              let integranteId = assignment.integrante_id;
+              // Se houver troca para este integrante nesta data, substitui pelo trocado
+              if (
+                trocasPorData.has(date) &&
+                trocasPorData.get(date).has(integranteId)
+              ) {
+                integranteId = trocasPorData.get(date).get(integranteId);
+                // Busca o nome do integrante trocado
+                const trocado = assignments.find(
+                  (a) => a.integrante_id === integranteId && a.data === date
+                );
+                return (trocado?.integrante?.nome || "").toUpperCase();
+              }
+              return (assignment.integrante?.nome || "").toUpperCase();
+            });
 
           const cellContent =
-            memberNames.length > 0 ? memberNames.join("<br>") : "";
+            workingMembers.length > 0 ? workingMembers.join("<br>") : "";
           const backgroundColor =
-            memberNames.length > 0 ? "#e8e8e8" : "#ffffff";
+            workingMembers.length > 0 ? "#e8e8e8" : "#ffffff";
 
           row += `<td style="border: 1px solid #000; padding: 6px; text-align: center; background-color: ${backgroundColor}; min-height: 35px; vertical-align: middle; font-size: 10px; font-weight: bold;">
             ${cellContent}
@@ -583,29 +648,45 @@ export default function FolgasViewPage() {
         // Lógica com especializações específicas
         specializations.forEach((spec) => {
           // Buscar membros trabalhando nesta data
-          const workingMembers = assignments.filter((assignment) => {
-            if (
-              assignment.data !== date ||
-              assignment.tipo_atribuicao !== "trabalho"
-            ) {
-              return false;
-            }
+          const workingMembers = assignments
+            .filter((assignment) => {
+              if (
+                assignment.data !== date ||
+                assignment.tipo_atribuicao !== "trabalho"
+              ) {
+                return false;
+              }
 
-            // Verificar se a especialização coincide
-            const assignmentSpec =
-              assignment.especializacao?.nome || assignment.observacao || "";
+              // Verificar se a especialização coincide
+              const assignmentSpec =
+                assignment.especializacao?.nome || assignment.observacao || "";
 
-            // Comparação direta com a especialização
-            if (!spec) return false;
+              // Comparação direta com a especialização
+              if (!spec) return false;
 
-            return (
-              assignmentSpec === spec ||
-              assignmentSpec.toLowerCase() === spec.toLowerCase() ||
-              // Se a especialização for igual a "Permanência" ou similar, incluir pessoas sem especialização
-              (["Permanência", "permanência", "Permanencia"].includes(spec) &&
-                assignmentSpec === "")
-            );
-          });
+              return (
+                assignmentSpec === spec ||
+                assignmentSpec.toLowerCase() === spec.toLowerCase() ||
+                (["Permanência", "permanência", "Permanencia"].includes(spec) &&
+                  assignmentSpec === "")
+              );
+            })
+            .map((assignment) => {
+              let integranteId = assignment.integrante_id;
+              // Se houver troca para este integrante nesta data, substitui pelo trocado
+              if (
+                trocasPorData.has(date) &&
+                trocasPorData.get(date).has(integranteId)
+              ) {
+                integranteId = trocasPorData.get(date).get(integranteId);
+                // Busca o nome do integrante trocado
+                const trocado = assignments.find(
+                  (a) => a.integrante_id === integranteId && a.data === date
+                );
+                return (trocado?.integrante?.nome || "").toUpperCase();
+              }
+              return (assignment.integrante?.nome || "").toUpperCase();
+            });
 
           // Se não há especializações dinâmicas e esta é uma especialização padrão,
           // distribuir pessoas sem especialização entre as colunas
@@ -619,7 +700,6 @@ export default function FolgasViewPage() {
               );
             });
 
-            // Distribuir membros sem especialização entre as colunas
             const specIndex = specializations.indexOf(spec);
             const membersPerColumn = Math.ceil(
               unassignedMembers.length / specializations.length
@@ -629,23 +709,29 @@ export default function FolgasViewPage() {
               startIndex + membersPerColumn,
               unassignedMembers.length
             );
-            const additionalMembers = unassignedMembers.slice(
-              startIndex,
-              endIndex
-            );
-
+            const additionalMembers = unassignedMembers
+              .slice(startIndex, endIndex)
+              .map((assignment) => {
+                let integranteId = assignment.integrante_id;
+                if (
+                  trocasPorData.has(date) &&
+                  trocasPorData.get(date).has(integranteId)
+                ) {
+                  integranteId = trocasPorData.get(date).get(integranteId);
+                  const trocado = assignments.find(
+                    (a) => a.integrante_id === integranteId && a.data === date
+                  );
+                  return (trocado?.integrante?.nome || "").toUpperCase();
+                }
+                return (assignment.integrante?.nome || "").toUpperCase();
+              });
             workingMembers.push(...additionalMembers);
           }
 
-          const memberNames = workingMembers.map((assignment) => {
-            const nome = assignment.integrante?.nome || "";
-            return nome.toUpperCase();
-          });
-
           const cellContent =
-            memberNames.length > 0 ? memberNames.join("<br>") : "";
+            workingMembers.length > 0 ? workingMembers.join("<br>") : "";
           const backgroundColor =
-            memberNames.length > 0 ? "#e8e8e8" : "#ffffff";
+            workingMembers.length > 0 ? "#e8e8e8" : "#ffffff";
 
           row += `<td style="border: 1px solid #000; padding: 6px; text-align: center; background-color: ${backgroundColor}; min-height: 35px; vertical-align: middle; font-size: 10px; font-weight: bold;">
             ${cellContent}
@@ -766,7 +852,9 @@ export default function FolgasViewPage() {
                 }) +
                 " A " +
                 format(
-                  new Date(filteredDates[filteredDates.length - 1] + "T12:00:00"),
+                  new Date(
+                    filteredDates[filteredDates.length - 1] + "T12:00:00"
+                  ),
                   "dd 'de' MMMM 'de' yyyy",
                   { locale: ptBR }
                 ).toUpperCase()
@@ -840,7 +928,6 @@ export default function FolgasViewPage() {
     };
   };
 
-
   useEffect(() => {
     (async () => {
       const data = await getCalendarData();
@@ -848,6 +935,27 @@ export default function FolgasViewPage() {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assignments, participations]);
+
+  const [swapHistory, setSwapHistory] = useState<any[]>([]);
+
+  // Buscar histórico de trocas e mostrar no card
+  useEffect(() => {
+    if (!scaleId) return;
+    const fetch = async () => {
+      const { data, error } = await supabase
+        .from("escala_folgas_trocas")
+        .select(
+          `*,
+          integrante1:integrantes!integrante1_id (nome),
+          integrante2:integrantes!integrante2_id (nome)
+        `
+        )
+        .eq("escala_folga_id", scaleId)
+        .order("created_at", { ascending: false });
+      if (!error && data) setSwapHistory(data);
+    };
+    fetch();
+  }, [scaleId, showChangeDialog]);
 
   const groupedAssignments = groupAssignmentsByDay();
 
@@ -863,7 +971,7 @@ export default function FolgasViewPage() {
     return (
       <div className="flex flex-1 flex-col gap-6 p-6">
         <div className="text-center py-12">
-          <Calendar className="h-16 w-16 mx-auto mb-4 opacity-50" />
+          <LucideCalendar className="h-16 w-16 mx-auto mb-4 opacity-50" />
           <h2 className="text-2xl font-semibold mb-2">Escala não encontrada</h2>
           <p className="text-muted-foreground mb-4">
             A escala de folgas solicitada não existe ou foi removida.
@@ -910,10 +1018,20 @@ export default function FolgasViewPage() {
               </div>
             </div>
           </div>
-          <Button onClick={handlePrintClick} variant="outline" size="sm">
-            <PrinterIcon className="mr-2 h-4 w-4" />
-            Imprimir
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => setShowChangeDialog(true)}
+              variant="outline"
+              size="sm"
+            >
+              <Users className="mr-2 h-4 w-4" />
+              Trocar Integrantes
+            </Button>
+            <Button onClick={handlePrintClick} variant="outline" size="sm">
+              <PrinterIcon className="mr-2 h-4 w-4" />
+              Imprimir
+            </Button>
+          </div>
         </div>
 
         {/* Informações da Escala */}
@@ -938,7 +1056,7 @@ export default function FolgasViewPage() {
               <CardTitle className="text-sm font-medium">
                 Dias Programados
               </CardTitle>
-              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <LucideCalendar className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
@@ -972,7 +1090,7 @@ export default function FolgasViewPage() {
         <Card className="overflow-hidden">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
+              <LucideCalendar className="h-5 w-5" />
               Cronograma da Escala
             </CardTitle>
             <CardDescription>
@@ -999,7 +1117,7 @@ export default function FolgasViewPage() {
 
               {!calendarData ? (
                 <div className="text-center py-8 text-muted-foreground print:py-8">
-                  <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50 print:h-8 print:w-8 print:mb-2" />
+                  <LucideCalendar className="h-12 w-12 mx-auto mb-4 opacity-50 print:h-8 print:w-8 print:mb-2" />
                   <p className="text-lg font-medium print:text-base">
                     Nenhuma atribuição cadastrada
                   </p>
@@ -1016,6 +1134,81 @@ export default function FolgasViewPage() {
                 />
               )}
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Histórico de Trocas */}
+        <Card className="overflow-hidden mt-4">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Trocas Realizadas
+            </CardTitle>
+            <CardDescription>
+              Veja o histórico de trocas realizadas nesta escala.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {swapHistory.length === 0 ? (
+              <div className="text-muted-foreground text-sm">
+                Nenhuma troca realizada.
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Data da Troca</TableHead>
+                    <TableHead>Quem vai trabalhar</TableHead>
+                    <TableHead>No dia</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {swapHistory.map((swap) => {
+                    const integrante1Nome =
+                      swap.integrante1?.nome ||
+                      (members.find((m) => m.id === swap.integrante1_id)
+                        ?.name ??
+                        "-");
+                    const integrante2Nome =
+                      swap.integrante2?.nome ||
+                      (members.find((m) => m.id === swap.integrante2_id)
+                        ?.name ??
+                        "-");
+                    // Mostra duas linhas: uma para cada integrante após a troca
+                    return [
+                      <TableRow key={swap.id + "-1"}>
+                        <TableCell
+                          rowSpan={2}
+                          style={{ verticalAlign: "middle" }}
+                        >
+                          {format(
+                            new Date(swap.created_at),
+                            "dd/MM/yyyy HH:mm"
+                          )}
+                        </TableCell>
+                        <TableCell>{integrante2Nome}</TableCell>
+                        <TableCell>
+                          {format(
+                            new Date(swap.data1 + "T12:00:00"),
+                            "dd/MM/yyyy"
+                          )}
+                        </TableCell>
+                      </TableRow>,
+                      <TableRow key={swap.id + "-2"}>
+                        {/* Data da troca omitida na segunda linha */}
+                        <TableCell>{integrante1Nome}</TableCell>
+                        <TableCell>
+                          {format(
+                            new Date(swap.data2 + "T12:00:00"),
+                            "dd/MM/yyyy"
+                          )}
+                        </TableCell>
+                      </TableRow>,
+                    ];
+                  })}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
 
@@ -1147,6 +1340,521 @@ export default function FolgasViewPage() {
                 Imprimir
               </Button>
             </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={showChangeDialog} onOpenChange={setShowChangeDialog}>
+          <DialogContent
+            className="sm:max-w-1/2 max-h-[80vh] overflow-y-auto"
+            style={{
+              scrollbarWidth: "thin",
+              scrollbarColor: "#a3a3a3 #f3f4f6",
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>Trocar Integrantes</DialogTitle>
+              <DialogDescription>
+                Selecione os integrantes para trocar de posição na escala.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <Formik
+                initialValues={{
+                  memberIdOne: "",
+                  selectedDates: [] as string[],
+                  memberIdTwo: "",
+                }}
+                enableReinitialize={true}
+                onSubmit={async (values, { setSubmitting, resetForm }) => {
+                  setSubmitting(true);
+                  try {
+                    const allDates = Array.from(
+                      new Set([
+                        ...swapPairs.map((p) => p.from),
+                        ...swapPairs.map((p) => p.to),
+                      ])
+                    );
+                    const { data: atribuicoes, error: errorAtrib } =
+                      await supabase
+                        .from("escala_folgas_atribuicoes")
+                        .select("id, integrante_id, tipo_atribuicao, data")
+                        .eq("escala_folga_id", scaleId)
+                        .in("data", allDates)
+                        .in("integrante_id", [
+                          values.memberIdOne,
+                          values.memberIdTwo,
+                        ]);
+                    if (errorAtrib) throw errorAtrib;
+                    if (
+                      !atribuicoes ||
+                      atribuicoes.length < swapPairs.length * 2
+                    ) {
+                      alert(
+                        "Nem todas as datas possuem atribuição para ambos os integrantes."
+                      );
+                      setSubmitting(false);
+                      return;
+                    }
+                    // Troca atômica via função RPC para cada par
+                    for (const pair of swapPairs) {
+                      const a1 = atribuicoes.find(
+                        (a) =>
+                          a.data === pair.from &&
+                          a.integrante_id === values.memberIdOne
+                      );
+                      const a2 = atribuicoes.find(
+                        (a) =>
+                          a.data === pair.to &&
+                          a.integrante_id === values.memberIdTwo
+                      );
+                      if (a1 && a2) {
+                        const memberOneName =
+                          members.find((m) => m.id === values.memberIdOne)
+                            ?.name || values.memberIdOne;
+                        const memberTwoName =
+                          members.find((m) => m.id === values.memberIdTwo)
+                            ?.name || values.memberIdTwo;
+
+                        if (swapAlsoLeaves) {
+                          // Troca completa (folga e trabalho)
+                          const { error } = await supabase.rpc(
+                            "trocar_atribuicoes_escala",
+                            {
+                              p_escala_folga_id: scaleId,
+                              p_integrante1_id: values.memberIdOne,
+                              p_data1: pair.from,
+                              p_integrante2_id: values.memberIdTwo,
+                              p_data2: pair.to,
+                              p_usuario_id: userId,
+                            }
+                          );
+                          if (error) {
+                            toast.error(
+                              "Erro ao realizar troca: " + error.message
+                            );
+                            setSubmitting(false);
+                            return;
+                          }
+                        } else {
+                          // Verifica se já existe troca igual
+                          const { data: existing, error: checkError } =
+                            await supabase
+                              .from("escala_folgas_trocas")
+                              .select("id")
+                              .eq("escala_folga_id", scaleId)
+                              .eq("integrante1_id", values.memberIdOne)
+                              .eq("data1", pair.from)
+                              .eq("integrante2_id", values.memberIdTwo)
+                              .eq("data2", pair.to)
+                              .maybeSingle();
+                          if (checkError) {
+                            toast.error(
+                              "Já existe uma troca igual registrada."
+                            );
+                            setSubmitting(false);
+                            return;
+                          }
+                          if (existing) {
+                            toast.error(
+                              "Esta troca já foi registrada anteriormente."
+                            );
+                            setSubmitting(false);
+                            return;
+                          }
+                          // Apenas registra na tabela de trocas
+                          const { error } = await supabase
+                            .from("escala_folgas_trocas")
+                            .insert([
+                              {
+                                escala_folga_id: scaleId,
+                                integrante1_id: values.memberIdOne,
+                                data1: pair.from,
+                                integrante2_id: values.memberIdTwo,
+                                data2: pair.to,
+                                usuario_id: userId,
+                              },
+                            ]);
+                          if (error) {
+                            toast.error(
+                              "Erro ao registrar troca: " + error.message
+                            );
+                            setSubmitting(false);
+                            return;
+                          }
+                        }
+                      } else {
+                        toast.error(
+                          `Não foi possível encontrar atribuição para as datas ${pair.from} ou ${pair.to}.`
+                        );
+                        setSubmitting(false);
+                        return;
+                      }
+                    }
+                    toast.success("Troca registrada com sucesso!");
+                    fetchScale();
+                    setShowChangeDialog(false);
+                    resetForm();
+                    setSwapPairs([]);
+                  } catch (err) {
+                    let msg = "";
+                    if (err && typeof err === "object" && "message" in err) {
+                      msg = (err as any).message;
+                    } else {
+                      msg = String(err);
+                    }
+                    alert("Erro ao realizar troca: " + msg);
+                  } finally {
+                    setSubmitting(false);
+                  }
+                }}
+                validationSchema={Yup.object().shape({
+                  memberIdOne: Yup.string().required(
+                    "O primeiro integrante é obrigatório"
+                  ),
+                  memberIdTwo: Yup.string().required(
+                    "O segundo integrante é obrigatório"
+                  ),
+                  selectedDates: Yup.array()
+                    .of(Yup.string().required("Data é obrigatória"))
+                    .min(1, "Selecione pelo menos uma data"),
+                })}
+                validateOnChange={false}
+              >
+                {({ isSubmitting, values, setFieldValue }) => {
+                  // Função para formatar datas para dd/MM/yyyy
+                  const formatDate = (dateStr: string) => {
+                    const d = new Date(dateStr + "T12:00:00");
+                    return format(d, "dd/MM/yyyy", { locale: ptBR });
+                  };
+                  // Datas de trabalho do integrante 1
+                  const memberOneDates: string[] = assignments
+                    .filter(
+                      (a) =>
+                        a.integrante?.id === values.memberIdOne &&
+                        a.tipo_atribuicao === "trabalho"
+                    )
+                    .map((a) => a.data)
+                    .sort();
+
+                  // Datas de trabalho do integrante 2
+                  const memberTwoDates: string[] = assignments
+                    .filter(
+                      (a) =>
+                        a.integrante?.id === values.memberIdTwo &&
+                        a.tipo_atribuicao === "trabalho"
+                    )
+                    .map((a) => a.data)
+                    .sort();
+
+                  // Estado local para pareamento das trocas
+                  // Limpa swapPairs se integrantes mudarem
+                  useEffect(() => {
+                    setSwapPairs([]);
+                  }, [values.memberIdOne, values.memberIdTwo]);
+                  // Função para adicionar/remover pares de troca
+                  const handleSwapPair = (from: string, to: string) => {
+                    setSwapPairs((prev) => {
+                      const exists = prev.find((p) => p.from === from);
+                      if (exists) {
+                        return prev.map((p) =>
+                          p.from === from ? { from, to } : p
+                        );
+                      } else {
+                        return [...prev, { from, to }];
+                      }
+                    });
+                  };
+                  const isDatePaired = (to: string) =>
+                    swapPairs.some((p) => p.to === to);
+                  const getPairedDate = (from: string) => {
+                    const pair = swapPairs.find((p) => p.from === from);
+                    return pair ? pair.to : null;
+                  };
+
+                  return (
+                    <Form className="space-y-4">
+                      <Field name="memberIdOne">
+                        {({ field, meta }) => (
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium">
+                              Integrante 1
+                            </label>
+                            <Select
+                              value={field.value}
+                              onValueChange={(val) => {
+                                setFieldValue("memberIdOne", val);
+                                setFieldValue("selectedDates", []);
+                              }}
+                            >
+                              <SelectTrigger
+                                className={`w-full ${
+                                  meta.error ? "border-red-500" : ""
+                                }`}
+                              >
+                                <SelectValue placeholder="Selecione um integrante" />
+                              </SelectTrigger>
+                              <SelectContent className="w-full">
+                                {members.map((member) => (
+                                  <SelectItem
+                                    key={member.id}
+                                    value={member.id}
+                                    className="capitalize hover:cursor-pointer"
+                                  >
+                                    {member.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {meta.touched && meta.error && (
+                              <div className="text-xs text-red-500">
+                                {meta.error}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </Field>
+                      {/* Multi-select de datas do integrante 1 */}
+                      {/* {values.memberIdOne && (
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">
+                            1. Selecione os dias de trabalho do Integrante 1
+                            para trocar
+                          </label>
+                          <Calendar
+                            mode="multiple"
+                            locale={ptBR}
+                            selected={values.selectedDates.map(
+                              (date) => new Date(date + "T12:00:00")
+                            )}
+                            onSelect={(dates) => {
+                              setFieldValue(
+                                "selectedDates",
+                                Array.isArray(dates)
+                                  ? dates.map((d) =>
+                                      d.toISOString().slice(0, 10)
+                                    )
+                                  : []
+                              );
+                              setSwapPairs([]);
+                            }}
+                            disabled={(date) =>
+                              !memberOneDates.includes(
+                                date.toISOString().slice(0, 10)
+                              )
+                            }
+                            fromDate={
+                              memberOneDates.length
+                                ? new Date(memberOneDates[0] + "T12:00:00")
+                                : undefined
+                            }
+                            toDate={
+                              memberOneDates.length
+                                ? new Date(
+                                    memberOneDates[memberOneDates.length - 1] +
+                                      "T12:00:00"
+                                  )
+                                : undefined
+                            }
+                          />
+                        </div>
+                      )} */}
+                      <Field name="selectedDates">
+                        {({ field, meta }) => (
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium">
+                              1. Selecione os dias de trabalho do Integrante 1
+                              para trocar
+                              <span className="text-red-500 ml-1">*</span>
+                            </label>
+                            <Calendar
+                              mode="multiple"
+                              locale={ptBR}
+                              selected={values.selectedDates.map(
+                                (date) => new Date(date + "T12:00:00")
+                              )}
+                              onSelect={(dates) => {
+                                setFieldValue(
+                                  "selectedDates",
+                                  Array.isArray(dates)
+                                    ? dates.map((d) =>
+                                        d.toISOString().slice(0, 10)
+                                      )
+                                    : []
+                                );
+                                setSwapPairs([]);
+                              }}
+                              disabled={(date) =>
+                                !memberOneDates.includes(
+                                  date.toISOString().slice(0, 10)
+                                )
+                              }
+                              fromDate={
+                                memberOneDates.length
+                                  ? new Date(memberOneDates[0] + "T12:00:00")
+                                  : undefined
+                              }
+                              toDate={
+                                memberOneDates.length
+                                  ? new Date(
+                                      memberOneDates[
+                                        memberOneDates.length - 1
+                                      ] + "T12:00:00"
+                                    )
+                                  : undefined
+                              }
+                            />
+                            {meta.touched && meta.error && (
+                              <div className="text-xs text-red-500">
+                                {meta.error}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </Field>
+
+                      <Field name="memberIdTwo">
+                        {({ field, meta }) => (
+                          <div className="space-y-2 w-full">
+                            <label className="text-sm font-medium">
+                              Integrante 2
+                            </label>
+                            <Select
+                              value={field.value}
+                              onValueChange={field.onChange(field.name)}
+                              disabled={
+                                !values.memberIdOne ||
+                                !values.selectedDates.length
+                              }
+                            >
+                              <SelectTrigger
+                                className={`w-full ${
+                                  meta.error ? "border-red-500" : ""
+                                }`}
+                              >
+                                <SelectValue placeholder="Selecione outro integrante" />
+                              </SelectTrigger>
+                              <SelectContent className="w-full">
+                                {members
+                                  .filter(
+                                    (member) => member.id !== values.memberIdOne
+                                  )
+                                  .map((member) => (
+                                    <SelectItem
+                                      key={member.id}
+                                      value={member.id}
+                                      className="capitalize hover:cursor-pointer"
+                                    >
+                                      {member.name}
+                                    </SelectItem>
+                                  ))}
+                              </SelectContent>
+                            </Select>
+                            {meta.touched && meta.error && (
+                              <div className="text-xs text-red-500">
+                                {meta.error}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </Field>
+                      {/* Seleção dos dias do integrante 2 para parear com os dias do integrante 1 */}
+
+                      {values.memberIdOne &&
+                        values.selectedDates.length > 0 &&
+                        values.memberIdTwo && (
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium">
+                              2. Para cada dia selecionado do Integrante 1,
+                              escolha o dia de trabalho do Integrante 2 para
+                              trocar:
+                            </label>
+                            <div className="flex flex-col gap-2">
+                              {values.selectedDates.map((fromDate) => (
+                                <div
+                                  key={fromDate}
+                                  className="flex items-center gap-2"
+                                >
+                                  <span className="text-xs min-w-[110px] font-semibold">
+                                    {formatDate(fromDate)}
+                                  </span>
+                                  <span className="mx-1">→</span>
+                                  <select
+                                    className="border rounded px-2 py-1 text-xs"
+                                    value={getPairedDate(fromDate) || ""}
+                                    onChange={(e) =>
+                                      handleSwapPair(fromDate, e.target.value)
+                                    }
+                                  >
+                                    <option value="">
+                                      Selecione o dia do Integrante 2
+                                    </option>
+                                    {memberTwoDates
+                                      .filter(
+                                        (d) =>
+                                          !isDatePaired(d) ||
+                                          getPairedDate(fromDate) === d
+                                      )
+                                      .map((d) => (
+                                        <option key={d} value={d}>
+                                          {formatDate(d)}
+                                        </option>
+                                      ))}
+                                  </select>
+                                </div>
+                              ))}
+                            </div>
+                            {/* Validação: todos os dias precisam estar pareados */}
+                            {values.selectedDates.length > 0 &&
+                              swapPairs.length !==
+                                values.selectedDates.length && (
+                                <div className="text-xs text-red-500 mt-1">
+                                  Selecione um dia correspondente do Integrante
+                                  2 para cada data do Integrante 1.
+                                </div>
+                              )}
+                            {/* Visualização das trocas */}
+                            <div className="mt-2">
+                              <label className="text-xs font-medium">
+                                Resumo das trocas:
+                              </label>
+                              <ul className="text-xs list-disc ml-4">
+                                {swapPairs.map((pair, idx) => (
+                                  <li key={idx}>
+                                    Integrante 1: <b>{formatDate(pair.from)}</b>{" "}
+                                    ⇄ Integrante 2: <b>{formatDate(pair.to)}</b>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          </div>
+                        )}
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id="swapAlsoLeaves"
+                          checked={swapAlsoLeaves}
+                          onCheckedChange={(checked) =>
+                            setSwapAlsoLeaves(checked === true)
+                          }
+                        />
+                        <Label htmlFor="swapAlsoLeaves">
+                          Trocar também as folgas
+                        </Label>
+                      </div>
+                      <Button
+                        type="submit"
+                        disabled={
+                          isSubmitting ||
+                          values.selectedDates.length === 0 ||
+                          swapPairs.length !== values.selectedDates.length
+                        }
+                      >
+                        Trocar
+                      </Button>
+                    </Form>
+                  );
+                }}
+              </Formik>
+            </div>
           </DialogContent>
         </Dialog>
       </div>
