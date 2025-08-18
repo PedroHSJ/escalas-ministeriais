@@ -16,6 +16,7 @@ import { Formik, Form, Field, FieldProps } from "formik";
 import * as yup from "yup";
 import { RegisterForm } from "./register-form";
 import { InputWithLabel } from "@/components/inputs/input-label";
+import { PasswordInput } from "@/components/inputs/password-input";
 import { toast } from "sonner";
 import { AuthApiError } from "@supabase/supabase-js";
 
@@ -96,11 +97,10 @@ export function LoginForm() {
               </Field>
               <Field name="password">
                 {({ field, meta }: FieldProps) => (
-                  <InputWithLabel
+                  <PasswordInput
                     id="password"
                     label="Senha"
                     placeholder="Senha"
-                    type="password"
                     {...field}
                     error={meta.touched && meta.error ? meta.error : undefined}
                   />
