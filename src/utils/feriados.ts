@@ -4,7 +4,6 @@ export interface Feriado {
   data: string; // YYYY-MM-DD
   nome: string;
   tipo: "nacional" | "regional" | "organizacional";
-  afetaEscala: boolean; // Se deve afetar a geração da escala
   folgasAdicionais?: number; // Quantas folgas adicionais conceder
 }
 
@@ -13,192 +12,185 @@ export const FERIADOS_NACIONAIS_FIXOS: Omit<Feriado, "data">[] = [
   {
     nome: "Confraternização Universal",
     tipo: "nacional",
-    afetaEscala: true,
     folgasAdicionais: 1,
   },
   {
     nome: "Independência do Brasil",
     tipo: "nacional",
-    afetaEscala: true,
     folgasAdicionais: 1,
   },
   {
     nome: "Nossa Senhora Aparecida",
     tipo: "nacional",
-    afetaEscala: true,
     folgasAdicionais: 1,
   },
   {
     nome: "Finados",
     tipo: "nacional",
-    afetaEscala: true,
     folgasAdicionais: 1,
   },
   {
     nome: "Proclamação da República",
     tipo: "nacional",
-    afetaEscala: true,
     folgasAdicionais: 1,
   },
   {
     nome: "Natal",
     tipo: "nacional",
-    afetaEscala: true,
     folgasAdicionais: 2, // Natal é mais especial
   },
 ];
 
 // Função para calcular feriados móveis
-export function calcularFeriadosMoveis(ano: number): Feriado[] {
-  const feriados: Feriado[] = [];
+// export function calcularFeriadosMoveis(ano: number): Feriado[] {
+//   const feriados: Feriado[] = [];
 
-  // Calcular Páscoa usando algoritmo
-  const pascoa = calcularPascoa(ano);
+//   // Calcular Páscoa usando algoritmo
+//   const pascoa = calcularPascoa(ano);
 
-  // Carnaval (47 dias antes da Páscoa)
-  const carnaval = new Date(pascoa);
-  carnaval.setDate(pascoa.getDate() - 47);
-  feriados.push({
-    data: formatDate(carnaval),
-    nome: "Carnaval",
-    tipo: "nacional",
-    afetaEscala: true,
-    folgasAdicionais: 1,
-  });
+//   // Carnaval (47 dias antes da Páscoa)
+//   const carnaval = new Date(pascoa);
+//   carnaval.setDate(pascoa.getDate() - 47);
+//   feriados.push({
+//     data: formatDate(carnaval),
+//     nome: "Carnaval",
+//     tipo: "nacional",
+//     folgasAdicionais: 1,
+//   });
 
-  // Sexta-feira Santa (2 dias antes da Páscoa)
-  const sextaSanta = new Date(pascoa);
-  sextaSanta.setDate(pascoa.getDate() - 2);
-  feriados.push({
-    data: formatDate(sextaSanta),
-    nome: "Sexta-feira Santa",
-    tipo: "nacional",
-    afetaEscala: true,
-    folgasAdicionais: 1,
-  });
+//   // Sexta-feira Santa (2 dias antes da Páscoa)
+//   const sextaSanta = new Date(pascoa);
+//   sextaSanta.setDate(pascoa.getDate() - 2);
+//   feriados.push({
+//     data: formatDate(sextaSanta),
+//     nome: "Sexta-feira Santa",
+//     tipo: "nacional",
+//     afetaEscala: true,
+//     folgasAdicionais: 1,
+//   });
 
-  // Corpus Christi (60 dias após a Páscoa)
-  const corpusChristi = new Date(pascoa);
-  corpusChristi.setDate(pascoa.getDate() + 60);
-  feriados.push({
-    data: formatDate(corpusChristi),
-    nome: "Corpus Christi",
-    tipo: "nacional",
-    afetaEscala: true,
-    folgasAdicionais: 1,
-  });
+//   // Corpus Christi (60 dias após a Páscoa)
+//   const corpusChristi = new Date(pascoa);
+//   corpusChristi.setDate(pascoa.getDate() + 60);
+//   feriados.push({
+//     data: formatDate(corpusChristi),
+//     nome: "Corpus Christi",
+//     tipo: "nacional",
+//     afetaEscala: true,
+//     folgasAdicionais: 1,
+//   });
 
-  return feriados;
-}
+//   return feriados;
+// }
 
-// Algoritmo para calcular a Páscoa
-function calcularPascoa(ano: number): Date {
-  const a = ano % 19;
-  const b = Math.floor(ano / 100);
-  const c = ano % 100;
-  const d = Math.floor(b / 4);
-  const e = b % 4;
-  const f = Math.floor((b + 8) / 25);
-  const g = Math.floor((b - f + 1) / 3);
-  const h = (19 * a + b - d - g + 15) % 30;
-  const i = Math.floor(c / 4);
-  const k = c % 4;
-  const l = (32 + 2 * e + 2 * i - h - k) % 7;
-  const m = Math.floor((a + 11 * h + 22 * l) / 451);
-  const n = Math.floor((h + l - 7 * m + 114) / 31);
-  const p = (h + l - 7 * m + 114) % 31;
+// // Algoritmo para calcular a Páscoa
+// function calcularPascoa(ano: number): Date {
+//   const a = ano % 19;
+//   const b = Math.floor(ano / 100);
+//   const c = ano % 100;
+//   const d = Math.floor(b / 4);
+//   const e = b % 4;
+//   const f = Math.floor((b + 8) / 25);
+//   const g = Math.floor((b - f + 1) / 3);
+//   const h = (19 * a + b - d - g + 15) % 30;
+//   const i = Math.floor(c / 4);
+//   const k = c % 4;
+//   const l = (32 + 2 * e + 2 * i - h - k) % 7;
+//   const m = Math.floor((a + 11 * h + 22 * l) / 451);
+//   const n = Math.floor((h + l - 7 * m + 114) / 31);
+//   const p = (h + l - 7 * m + 114) % 31;
 
-  return new Date(ano, n - 1, p + 1);
-}
+//   return new Date(ano, n - 1, p + 1);
+// }
 
-// Gerar feriados fixos para um ano
-export function gerarFeriadosFixos(ano: number): Feriado[] {
-  const feriados: Feriado[] = [];
+// // Gerar feriados fixos para um ano
+// export function gerarFeriadosFixos(ano: number): Feriado[] {
+//   const feriados: Feriado[] = [];
 
-  // Janeiro
-  feriados.push({
-    data: `${ano}-01-01`,
-    nome: "Confraternização Universal",
-    tipo: "nacional",
-    afetaEscala: true,
-    folgasAdicionais: 1,
-  });
+//   // Janeiro
+//   feriados.push({
+//     data: `${ano}-01-01`,
+//     nome: "Confraternização Universal",
+//     tipo: "nacional",
+//     afetaEscala: true,
+//     folgasAdicionais: 1,
+//   });
 
-  // Abril - Tiradentes
-  feriados.push({
-    data: `${ano}-04-21`,
-    nome: "Tiradentes",
-    tipo: "nacional",
-    afetaEscala: true,
-    folgasAdicionais: 1,
-  });
+//   // Abril - Tiradentes
+//   feriados.push({
+//     data: `${ano}-04-21`,
+//     nome: "Tiradentes",
+//     tipo: "nacional",
+//     afetaEscala: true,
+//     folgasAdicionais: 1,
+//   });
 
-  // Maio - Dia do Trabalhador
-  feriados.push({
-    data: `${ano}-05-01`,
-    nome: "Dia do Trabalhador",
-    tipo: "nacional",
-    afetaEscala: true,
-    folgasAdicionais: 1,
-  });
+//   // Maio - Dia do Trabalhador
+//   feriados.push({
+//     data: `${ano}-05-01`,
+//     nome: "Dia do Trabalhador",
+//     tipo: "nacional",
+//     afetaEscala: true,
+//     folgasAdicionais: 1,
+//   });
 
-  // Setembro - Independência
-  feriados.push({
-    data: `${ano}-09-07`,
-    nome: "Independência do Brasil",
-    tipo: "nacional",
-    afetaEscala: true,
-    folgasAdicionais: 1,
-  });
+//   // Setembro - Independência
+//   feriados.push({
+//     data: `${ano}-09-07`,
+//     nome: "Independência do Brasil",
+//     tipo: "nacional",
+//     afetaEscala: true,
+//     folgasAdicionais: 1,
+//   });
 
-  // Outubro - Nossa Senhora Aparecida
-  feriados.push({
-    data: `${ano}-10-12`,
-    nome: "Nossa Senhora Aparecida",
-    tipo: "nacional",
-    afetaEscala: true,
-    folgasAdicionais: 1,
-  });
+//   // Outubro - Nossa Senhora Aparecida
+//   feriados.push({
+//     data: `${ano}-10-12`,
+//     nome: "Nossa Senhora Aparecida",
+//     tipo: "nacional",
+//     afetaEscala: true,
+//     folgasAdicionais: 1,
+//   });
 
-  // Novembro - Finados
-  feriados.push({
-    data: `${ano}-11-02`,
-    nome: "Finados",
-    tipo: "nacional",
-    afetaEscala: true,
-    folgasAdicionais: 1,
-  });
+//   // Novembro - Finados
+//   feriados.push({
+//     data: `${ano}-11-02`,
+//     nome: "Finados",
+//     tipo: "nacional",
+//     afetaEscala: true,
+//     folgasAdicionais: 1,
+//   });
 
-  // Novembro - Proclamação da República
-  feriados.push({
-    data: `${ano}-11-15`,
-    nome: "Proclamação da República",
-    tipo: "nacional",
-    afetaEscala: true,
-    folgasAdicionais: 1,
-  });
+//   // Novembro - Proclamação da República
+//   feriados.push({
+//     data: `${ano}-11-15`,
+//     nome: "Proclamação da República",
+//     tipo: "nacional",
+//     afetaEscala: true,
+//     folgasAdicionais: 1,
+//   });
 
-  // Dezembro - Natal
-  feriados.push({
-    data: `${ano}-12-25`,
-    nome: "Natal",
-    tipo: "nacional",
-    afetaEscala: true,
-    folgasAdicionais: 2,
-  });
+//   // Dezembro - Natal
+//   feriados.push({
+//     data: `${ano}-12-25`,
+//     nome: "Natal",
+//     tipo: "nacional",
+//     afetaEscala: true,
+//     folgasAdicionais: 2,
+//   });
 
-  return feriados;
-}
+//   return feriados;
+// }
 
 // Combinar todos os feriados de um ano
-export function obterTodosFeriados(ano: number): Feriado[] {
-  const feriadosFixos = gerarFeriadosFixos(ano);
-  const feriadosMoveis = calcularFeriadosMoveis(ano);
+// export function obterTodosFeriados(ano: number): Feriado[] {
+//   const feriadosFixos = gerarFeriadosFixos(ano);
+//   const feriadosMoveis = calcularFeriadosMoveis(ano);
 
-  return [...feriadosFixos, ...feriadosMoveis].sort((a, b) =>
-    a.data.localeCompare(b.data)
-  );
-}
+//   return [...feriadosFixos, ...feriadosMoveis].sort((a, b) =>
+//     a.data.localeCompare(b.data)
+//   );
+//}
 
 // Verificar se uma data é feriado
 export function isFeriado(data: Date, feriados: Feriado[]): Feriado | null {
@@ -212,29 +204,15 @@ export function aplicarRegrasFeriado(
   membrosAtivos: any[],
   feriado: Feriado | null
 ): { folgasExtras: number; ajusteEspecial: boolean } {
-  if (!feriado || !feriado.afetaEscala) {
+  if (!feriado) {
     return { folgasExtras: 0, ajusteEspecial: false };
   }
 
   // Regras especiais para feriados
   const totalMembros = membrosAtivos.length;
-  const folgasExtras = feriado.folgasAdicionais || 0;
 
-  // Em feriados importantes, mais pessoas ficam de folga
-  if (
-    feriado.nome === "Natal" ||
-    feriado.nome === "Confraternização Universal"
-  ) {
-    // No Natal e Ano Novo, apenas 1 pessoa trabalha (se possível)
-    return {
-      folgasExtras: Math.max(0, totalMembros - 1),
-      ajusteEspecial: true,
-    };
-  }
-
-  // Outros feriados: folgas normais + folgas extras
   return {
-    folgasExtras,
+    folgasExtras: Math.max(0, totalMembros - 1),
     ajusteEspecial: true,
   };
 }
@@ -257,16 +235,16 @@ function formatDate(data: Date): string {
 }
 
 // Hook para usar feriados no componente
-export function useFeriados(ano: number) {
-  return {
-    feriados: obterTodosFeriados(ano),
-    isFeriado: (data: Date) => isFeriado(data, obterTodosFeriados(ano)),
-    aplicarRegras: (data: Date, membros: any[]) => {
-      const feriado = isFeriado(data, obterTodosFeriados(ano));
-      return aplicarRegrasFeriado(data, membros, feriado);
-    },
-  };
-}
+// export function useFeriados(ano: number) {
+//   return {
+//     feriados: obterTodosFeriados(ano),
+//     isFeriado: (data: Date) => isFeriado(data, obterTodosFeriados(ano)),
+//     aplicarRegras: (data: Date, membros: any[]) => {
+//       const feriado = isFeriado(data, obterTodosFeriados(ano));
+//       return aplicarRegrasFeriado(data, membros, feriado);
+//     },
+//   };
+// }
 
 import { supabase } from "@/lib/supabaseClient";
 
@@ -329,7 +307,6 @@ export default class FeriadoManager {
             data: item.data,
             nome: item.nome,
             tipo: item.tipo as "nacional" | "regional" | "organizacional",
-            afetaEscala: item.afeta_escala,
             folgasAdicionais: item.folgas_adicionais,
           };
 
@@ -359,7 +336,6 @@ export default class FeriadoManager {
         data: feriado.data,
         nome: feriado.nome,
         tipo: feriado.tipo,
-        afeta_escala: feriado.afetaEscala,
         folgas_adicionais: feriado.folgasAdicionais || 1,
         created_by: this.userId,
       });
@@ -371,7 +347,6 @@ export default class FeriadoManager {
           data: feriado.data,
           nome: feriado.nome,
           tipo: feriado.tipo,
-          afeta_escala: feriado.afetaEscala,
           folgas_adicionais: feriado.folgasAdicionais || 1,
           created_by: this.userId,
         })
@@ -461,12 +436,12 @@ export default class FeriadoManager {
   // Obter feriados de um ano específico (incluindo personalizados)
   async getFeriados(ano: number): Promise<Feriado[]> {
     if (!this.feriados.has(ano)) {
-      const feriadosNacionais = obterTodosFeriados(ano);
+      //const feriadosNacionais = obterTodosFeriados(ano);
       const feriadosPersonalizados = await this.getFeriadosPersonalizados(ano);
 
       // Combinar e ordenar por data
       const todosFeriados = [
-        ...feriadosNacionais,
+        //...feriadosNacionais,
         ...feriadosPersonalizados,
       ].sort((a, b) => a.data.localeCompare(b.data));
 
@@ -566,10 +541,6 @@ export default class FeriadoManager {
       !["nacional", "regional", "organizacional"].includes(feriado.tipo)
     ) {
       erros.push("Tipo deve ser: nacional, regional ou organizacional");
-    }
-
-    if (typeof feriado.afetaEscala !== "boolean") {
-      erros.push('Campo "afetaEscala" deve ser verdadeiro ou falso');
     }
 
     if (

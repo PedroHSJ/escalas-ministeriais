@@ -97,8 +97,8 @@ export default function FeriadosPage() {
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Feriados Nacionais */}
+      {/* <div className="grid gap-6 lg:grid-cols-2">
+
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -177,7 +177,7 @@ export default function FeriadosPage() {
           </CardContent>
         </Card>
 
-        {/* Controle de Ano */}
+
         <Card>
           <CardHeader>
             <CardTitle>Controles</CardTitle>
@@ -242,7 +242,7 @@ export default function FeriadosPage() {
             </div>
           </CardContent>
         </Card>
-      </div>
+      </div> */}
 
       {/* Seção de Feriados Personalizados */}
       {feriadoManager && (

@@ -48,12 +48,14 @@ export default function FeriadosPersonalizados({
     Feriado[]
   >([]);
   const [dialogAberto, setDialogAberto] = useState(false);
-  const [novoFeriado, setNovoFeriado] = useState<Partial<Feriado>>({
+  const [novoFeriado, setNovoFeriado] = useState<
+    Partial<Feriado> & { folgasAdicionaisInput?: string }
+  >({
     data: "",
     nome: "",
     tipo: "organizacional",
-    afetaEscala: true,
-    folgasAdicionais: 1,
+    // afetaEscala removido
+    folgasAdicionaisInput: "",
   });
 
   // Carregar feriados personalizados do ano selecionado
@@ -84,7 +86,19 @@ export default function FeriadosPersonalizados({
     }
 
     try {
-      await feriadoManager.addFeriadoPersonalizado(novoFeriado as Feriado);
+      // Converter folgasAdicionaisInput para número antes de salvar
+      const feriadoParaSalvar: Feriado = {
+        data: novoFeriado.data || "",
+        nome: novoFeriado.nome || "",
+        tipo: novoFeriado.tipo || "organizacional",
+        // afetaEscala removido
+        folgasAdicionais:
+          !novoFeriado.folgasAdicionaisInput ||
+          novoFeriado.folgasAdicionaisInput === ""
+            ? undefined
+            : Number(novoFeriado.folgasAdicionaisInput),
+      };
+      await feriadoManager.addFeriadoPersonalizado(feriadoParaSalvar);
 
       // Atualizar lista
       const feriadosAtualizados =
@@ -96,8 +110,7 @@ export default function FeriadosPersonalizados({
         data: "",
         nome: "",
         tipo: "organizacional",
-        afetaEscala: true,
-        folgasAdicionais: 1,
+        folgasAdicionaisInput: "",
       });
 
       setDialogAberto(false);
@@ -309,31 +322,17 @@ export default function FeriadosPersonalizados({
                       type="number"
                       min="0"
                       max="5"
-                      value={novoFeriado.folgasAdicionais || 1}
+                      value={novoFeriado.folgasAdicionaisInput ?? ""}
                       onChange={(e) =>
                         setNovoFeriado((prev) => ({
                           ...prev,
-                          folgasAdicionais: parseInt(e.target.value) || 1,
+                          folgasAdicionaisInput: e.target.value,
                         }))
                       }
                     />
                   </div>
 
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="afeta-escala"
-                      checked={novoFeriado.afetaEscala}
-                      onCheckedChange={(checked) =>
-                        setNovoFeriado((prev) => ({
-                          ...prev,
-                          afetaEscala: !!checked,
-                        }))
-                      }
-                    />
-                    <Label htmlFor="afeta-escala">
-                      Afeta geração de escala
-                    </Label>
-                  </div>
+                  {/* Campo afetaEscala removido */}
 
                   <div className="flex justify-end gap-2">
                     <Button
@@ -382,12 +381,13 @@ export default function FeriadosPersonalizados({
                     >
                       {feriado.tipo}
                     </Badge>
-                    {feriado.afetaEscala && (
-                      <Badge variant="outline">
-                        +{feriado.folgasAdicionais || 1} folga
-                        {(feriado.folgasAdicionais || 1) > 1 ? "s" : ""}
-                      </Badge>
-                    )}
+                    {typeof feriado.folgasAdicionais === "number" &&
+                      feriado.folgasAdicionais > 0 && (
+                        <Badge variant="outline">
+                          +{feriado.folgasAdicionais} folga
+                          {feriado.folgasAdicionais > 1 ? "s" : ""}
+                        </Badge>
+                      )}
                   </div>
                 </div>
                 <Button
