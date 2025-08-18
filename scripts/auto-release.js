@@ -484,7 +484,7 @@ async function generateReleaseBody(version, type, commits) {
 
   body += `---
 
-**Sistema de Escalas Ministeriais v${version}**  
+**Sistema de Escalas v${version}**  
 
 *Esta versão foi testada e está pronta para produção.*`;
 

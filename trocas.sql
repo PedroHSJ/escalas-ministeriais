@@ -87,3 +87,5 @@ ALTER TABLE public.escala_folgas_trocas
     FOREIGN KEY (integrante2_id) REFERENCES public.integrantes(id),
   ADD CONSTRAINT fk_usuario
     FOREIGN KEY (usuario_id) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+ALTER TABLE public.feriados_personalizados DROP COLUMN afeta_escala;
