@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Formik, Form, Field, ErrorMessage } from "formik";
 import * as Yup from "yup";
@@ -29,14 +29,26 @@ import { NavigationLink } from "../ui/navigation-link";
 import { useNavigation } from "@/contexts/NavigationContext";
 
 export function ResetPasswordForm() {
+  return (
+    <Suspense
+      fallback={
+        <div className="w-full max-w-md mx-auto text-center p-8">
+          Carregando...
+        </div>
+      }
+    >
+      <ResetPasswordFormContent />
+    </Suspense>
+  );
+}
+
+function ResetPasswordFormContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  // const { resetPassword, loading } = useAuth?.() || {};
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
   const { isNavigating } = useNavigation();
-  // O token deve vir como parâmetro na URL
   const token = searchParams.get("token");
   const email = searchParams.get("email");
   const dev = process.env.NODE_ENV === "development";
