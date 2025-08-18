@@ -10,6 +10,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabaseClient";
 import { Formik, Form, Field, FieldProps } from "formik";
 import * as yup from "yup";
 import { RegisterForm } from "./register-form";
@@ -20,6 +22,7 @@ import { AuthApiError } from "@supabase/supabase-js";
 export function LoginForm() {
   const { signInWithGoogle, signInWithEmail, loading, user, linkWithEmail } =
     useAuth();
+  const router = useRouter();
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [showRegister, setShowRegister] = useState(false);
@@ -43,6 +46,7 @@ export function LoginForm() {
     setSuccess("");
     try {
       await signInWithEmail(values.email, values.password);
+      router.push("/auth/callback");
     } catch (err: any) {
       console.log(err);
       if (err instanceof AuthApiError) {
@@ -118,7 +122,14 @@ export function LoginForm() {
           </span>
         </div>
         <Button
-          onClick={signInWithGoogle}
+          onClick={async () => {
+            try {
+              await signInWithGoogle();
+              router.push("/auth/check");
+            } catch (err) {
+              toast.error("Erro ao autenticar com Google.");
+            }
+          }}
           disabled={loading}
           className="w-full"
           variant="outline"
