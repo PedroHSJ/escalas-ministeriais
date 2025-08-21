@@ -125,7 +125,6 @@ export function LoginForm() {
           onClick={async () => {
             try {
               await signInWithGoogle();
-              router.push("/auth/check");
             } catch (err) {
               toast.error("Erro ao autenticar com Google.");
             }
