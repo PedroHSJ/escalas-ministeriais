@@ -300,6 +300,14 @@ export default function FolgasViewPage() {
       )
     ).sort();
 
+    // Criar mapa de membros de licença/férias
+    const membersOnLeave: Record<string, boolean> = {};
+    participations.forEach((p) => {
+      if (p.integrante?.nome && p.apenas_contabiliza_folgas) {
+        membersOnLeave[p.integrante.nome] = true;
+      }
+    });
+
     const calendarMatrix: Record<
       string,
       Record<
@@ -361,7 +369,7 @@ export default function FolgasViewPage() {
             calendarMatrix[memberName][date] = {
               codigo: codigoFolga,
               tipo: "folga",
-              color: "#fecaca",
+              color: "#fff",
               textColor: isEscalaPreta ? "#000000" : "#fff",
             };
           }
@@ -399,6 +407,7 @@ export default function FolgasViewPage() {
       matrix: calendarMatrix,
       members: sortedMembers,
       escalaVermelhaMap,
+      membersOnLeave,
     };
   };
 
@@ -418,6 +427,11 @@ export default function FolgasViewPage() {
   // Função para obter a cor da especialização de um integrante
   const getMemberSpecializationColor = (memberName: string) => {
     if (!calendarData) return "#f3f4f6";
+
+    // Verificar se o membro está de licença/férias
+    if (calendarData.membersOnLeave?.[memberName]) {
+      return "#9ca3af"; // Cinza para membros de licença
+    }
 
     // Procurar a primeira atribuição de trabalho deste membro para identificar sua especialização
     const memberWorkAssignment = assignments.find(

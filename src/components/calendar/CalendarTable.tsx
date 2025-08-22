@@ -24,6 +24,7 @@ interface CalendarData {
   >;
   members: (string | undefined)[];
   escalaVermelhaMap?: Record<string, boolean>; // Mapa de datas para escala vermelha
+  membersOnLeave?: Record<string, boolean>; // Mapa de membros de licença/férias
 }
 
 interface CalendarTableProps {
@@ -141,6 +142,21 @@ export default function CalendarTable({
             </div>
           </div>
 
+          {/* Legenda de Status dos Membros */}
+          <div className="mb-3">
+            <div className="text-xs text-primary mb-1">
+              <strong>Status dos Membros:</strong>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <div className="w-4 h-4 rounded border bg-gray-400 flex-shrink-0"></div>
+                <span className="text-xs whitespace-nowrap">
+                  De Licença/Férias
+                </span>
+              </div>
+            </div>
+          </div>
+
           {/* Legenda das Especializações */}
           {calendarData.specializations.length > 0 && (
             <div>
@@ -222,18 +238,25 @@ export default function CalendarTable({
             </tr>
           </thead>
           <tbody>
-            {calendarData.members.map((memberName) => (
-              <tr key={memberName}>
-                <td
-                  className="border border-gray-300 p-1.5 font-medium sticky left-0 z-10 text-xs min-w-[100px] max-w-[140px]"
-                  style={{
-                    backgroundColor: getMemberSpecializationColor(memberName!),
-                  }}
-                >
-                  <div className="truncate text-black" title={memberName}>
-                    {memberName}
-                  </div>
-                </td>
+            {calendarData.members.map((memberName) => {
+              const isOnLeave = calendarData.membersOnLeave?.[memberName!];
+              const memberBgColor = isOnLeave 
+                ? "#9ca3af" // Cinza para membros de licença
+                : getMemberSpecializationColor(memberName!);
+              const memberTextColor = isOnLeave ? "text-white" : "text-black";
+              
+              return (
+                <tr key={memberName} className={isOnLeave ? "opacity-75" : ""}>
+                  <td
+                    className={`border border-gray-300 p-1.5 font-medium sticky left-0 z-10 text-xs min-w-[100px] max-w-[140px] ${memberTextColor}`}
+                    style={{
+                      backgroundColor: memberBgColor,
+                    }}
+                  >
+                    <div className="truncate" title={memberName}>
+                      {memberName}
+                    </div>
+                  </td>
                 {calendarData.dates.map((date) => {
                   const cellData = calendarData.matrix[memberName!]?.[date];
                   const isEscalaVermelha =
@@ -245,7 +268,7 @@ export default function CalendarTable({
                   return (
                     <td
                       key={date}
-                      className="border border-gray-300 p-0.5 text-center min-w-[30px] max-w-[35px]"
+                      className="border border-gray-300 p-0.5 text-center min-w-[30px] max-w-[35px] bg-white"
                       style={{
                         backgroundColor: cellData?.color || "#f3f4f6",
                       }}
@@ -257,7 +280,8 @@ export default function CalendarTable({
                             : isEscalaVermelha
                             ? "text-red-700"
                             : "text-black"
-                        }`}
+                        }
+                        `}
                         // style={{
                         //   color: textColor || "inherit",
                         // }}
@@ -267,8 +291,9 @@ export default function CalendarTable({
                     </td>
                   );
                 })}
-              </tr>
-            ))}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
