@@ -421,39 +421,116 @@ export default function FolgasViewPage() {
       "#fde68a", // amarelo claro
       "#f9a8d4", // rosa claro
     ];
-    return colors[(index - 1) % colors.length] || "#e5e7eb";
+    const color = colors[(index - 1) % colors.length] || "#e5e7eb";
+    console.log(`🎨 getSpecializationColor(${index}) = ${color} (${colors[index - 1] || 'padrão'})`);
+    return color;
   };
 
   // Função para obter a cor da especialização de um integrante
   const getMemberSpecializationColor = (memberName: string) => {
-    if (!calendarData) return "#f3f4f6";
-
+    if (!calendarData) {
+      console.log(`🎨 [${memberName}] Sem dados do calendário - cor padrão: #f3f4f6`);
+      return "#f3f4f6";
+    }
+    
     // Verificar se o membro está de licença/férias
     if (calendarData.membersOnLeave?.[memberName]) {
+      console.log(`🎨 [${memberName}] Membro de licença/férias - cor cinza: #9ca3af`);
       return "#9ca3af"; // Cinza para membros de licença
     }
 
-    // Procurar a primeira atribuição de trabalho deste membro para identificar sua especialização
+    console.log(`🔍 [${memberName}] Procurando especialização...`);
+
+    // 1. Primeiro, procurar por atribuições de trabalho deste membro
     const memberWorkAssignment = assignments.find(
       (a) =>
         a.integrante?.nome === memberName && a.tipo_atribuicao === "trabalho"
     );
 
-    if (
-      memberWorkAssignment?.especializacao?.nome ||
-      memberWorkAssignment?.observacao
-    ) {
-      const especializacao =
-        memberWorkAssignment.especializacao?.nome ||
-        memberWorkAssignment.observacao;
-      const specIndex = calendarData.specializations.indexOf(
-        especializacao || ""
+    console.log(`🔍 [${memberName}] Atribuição de trabalho encontrada:`, memberWorkAssignment);
+    console.log(`🔍 [${memberName}] Especialização da atribuição:`, memberWorkAssignment?.especializacao?.nome);
+    console.log(`🔍 [${memberName}] Observação da atribuição:`, memberWorkAssignment?.observacao);
+
+    // 2. Se não encontrar atribuição de trabalho, procurar por qualquer atribuição deste membro
+    let especializacao = "";
+    if (memberWorkAssignment?.especializacao?.nome || memberWorkAssignment?.observacao) {
+      especializacao = (memberWorkAssignment.especializacao?.nome || memberWorkAssignment?.observacao) || "";
+      console.log(`🔍 [${memberName}] Especialização encontrada na atribuição de trabalho:`, especializacao);
+    } else {
+      // Procurar por qualquer atribuição deste membro (trabalho ou folga) para identificar especialização
+      const anyMemberAssignment = assignments.find(
+        (a) => a.integrante?.nome === memberName
       );
-      if (specIndex !== -1) {
-        return getSpecializationColor(specIndex + 1);
+      
+      console.log(`🔍 [${memberName}] Qualquer atribuição encontrada:`, anyMemberAssignment);
+      
+      if (anyMemberAssignment?.especializacao?.nome || anyMemberAssignment?.observacao) {
+        especializacao = (anyMemberAssignment.especializacao?.nome || anyMemberAssignment.observacao) || "";
+        console.log(`🔍 [${memberName}] Especialização encontrada em atribuição geral:`, especializacao);
+      } else {
+        // 3. Se não encontrar em atribuições, procurar por atribuições de trabalho de outros membros na mesma data
+        // para inferir a especialização deste membro
+        console.log(`🔍 [${memberName}] Procurando especialização por inferência...`);
+        
+        // Procurar por qualquer atribuição deste membro para obter uma data
+        const anyMemberAssignment = assignments.find(
+          (a) => a.integrante?.nome === memberName
+        );
+        
+        if (anyMemberAssignment?.data) {
+          // Procurar por atribuições de trabalho na mesma data para inferir especialização
+          const workAssignmentsOnSameDate = assignments.filter(
+            (a) => a.data === anyMemberAssignment.data && 
+                   a.tipo_atribuicao === "trabalho" &&
+                   a.especializacao?.nome
+          );
+          
+          console.log(`🔍 [${memberName}] Atribuições de trabalho na mesma data:`, workAssignmentsOnSameDate);
+          
+          if (workAssignmentsOnSameDate.length > 0) {
+            // Usar a especialização mais comum naquela data
+            const specCounts: Record<string, number> = {};
+            workAssignmentsOnSameDate.forEach(a => {
+              const specName = a.especializacao?.nome || "";
+              if (specName) {
+                specCounts[specName] = (specCounts[specName] || 0) + 1;
+              }
+            });
+            
+            const mostCommonSpec = Object.entries(specCounts)
+              .sort(([,a], [,b]) => b - a)[0]?.[0];
+            
+            if (mostCommonSpec) {
+              especializacao = mostCommonSpec;
+              console.log(`🔍 [${memberName}] Especialização inferida por atribuições na mesma data:`, especializacao);
+            }
+          }
+        }
+        
+        if (!especializacao) {
+          console.log(`⚠️ [${memberName}] Nenhuma especialização encontrada em nenhuma atribuição ou por inferência`);
+        }
       }
     }
 
+    if (especializacao) {
+      console.log(`🔍 [${memberName}] Especialização final:`, especializacao);
+      console.log(`🔍 [${memberName}] Especializações disponíveis:`, calendarData.specializations);
+      
+      const specIndex = calendarData.specializations.indexOf(especializacao);
+      
+      console.log(`🔍 [${memberName}] Índice da especialização:`, specIndex);
+      
+      if (specIndex !== -1) {
+        const color = getSpecializationColor(specIndex + 1);
+        console.log(`🎨 [${memberName}] Especialização "${especializacao}" (índice ${specIndex}) - cor: ${color}`);
+        return color;
+      } else {
+        console.log(`⚠️ [${memberName}] Especialização "${especializacao}" não encontrada na lista de especializações`);
+      }
+    }
+
+    console.log(`🎨 [${memberName}] Usando cor padrão: #f3f4f6`);
     return "#f3f4f6"; // cor padrão se não tiver especialização
   };
 
