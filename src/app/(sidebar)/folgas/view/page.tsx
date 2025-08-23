@@ -196,6 +196,9 @@ export default function FolgasViewPage() {
 
       setParticipations(participationsData || []);
 
+      // Limpar cache de folgas quando dados são carregados
+      leavesCache.clear();
+
       // Buscar atribuições
       const { data: assignmentsData, error: assignmentsError } = await supabase
         .from("escala_folgas_atribuicoes")
@@ -255,6 +258,123 @@ export default function FolgasViewPage() {
     });
 
     return grouped;
+  };
+
+  // Cache para armazenar cálculos de folgas já realizados
+  const leavesCache = new Map<string, { total: number; preta: number; vermelha: number }>();
+
+  // Função para calcular folgas dinamicamente até uma data específica
+  const calculateCurrentLeaves = (integranteId: string, targetDate: string) => {
+    const cacheKey = `${integranteId}_${targetDate}`;
+    
+    // Verificar cache primeiro
+    if (leavesCache.has(cacheKey)) {
+      return leavesCache.get(cacheKey)!;
+    }
+
+    if (!assignments.length || !participations.length) {
+      const result = { total: 0, preta: 0, vermelha: 0 };
+      leavesCache.set(cacheKey, result);
+      return result;
+    }
+
+    // Buscar folgas iniciais da participação
+    const participacao = participations.find(p => p.integrante_id === integranteId);
+    if (!participacao) {
+      const result = { total: 0, preta: 0, vermelha: 0 };
+      leavesCache.set(cacheKey, result);
+      return result;
+    }
+
+    // Começar com folgas iniciais
+    let folgasPreta = participacao.folgas_iniciais_preta || 0;
+    let folgasVermelha = participacao.folgas_iniciais_vermelha || 0;
+
+    // Para integrantes em férias/licença, usar contagem única
+    if (participacao.apenas_contabiliza_folgas) {
+      // Para férias/licença, somar ambas as folgas iniciais em uma contagem única
+      const folgasUnicas = folgasPreta + folgasVermelha;
+      
+      // Contar todos os dias de folga até a data alvo
+      const integranteAssignments = assignments
+        .filter(a => a.integrante_id === integranteId)
+        .filter(a => {
+          const assignmentDate = typeof a.data === 'string' ? a.data : 
+            new Date(a.data).toISOString().split('T')[0];
+          return assignmentDate <= targetDate;
+        })
+        .sort((a, b) => {
+          const dateA = typeof a.data === 'string' ? a.data : 
+            new Date(a.data).toISOString().split('T')[0];
+          const dateB = typeof b.data === 'string' ? b.data : 
+            new Date(b.data).toISOString().split('T')[0];
+          return dateA.localeCompare(dateB);
+        });
+
+      let folgasAdicionais = 0;
+      integranteAssignments.forEach(assignment => {
+        if (assignment.tipo_atribuicao === 'folga') {
+          folgasAdicionais++;
+        } else if (assignment.tipo_atribuicao === 'trabalho') {
+          // Para férias/licença, reset ambas quando trabalha
+          folgasAdicionais = 0;
+        }
+      });
+
+      const totalFolgas = folgasUnicas + folgasAdicionais;
+      const result = { total: totalFolgas, preta: totalFolgas, vermelha: totalFolgas };
+      leavesCache.set(cacheKey, result);
+      return result;
+    }
+
+    // Para integrantes normais, contar separadamente por escala
+    const integranteAssignments = assignments
+      .filter(a => a.integrante_id === integranteId)
+      .filter(a => {
+        const assignmentDate = typeof a.data === 'string' ? a.data : 
+          new Date(a.data).toISOString().split('T')[0];
+        return assignmentDate <= targetDate;
+      })
+      .sort((a, b) => {
+        const dateA = typeof a.data === 'string' ? a.data : 
+          new Date(a.data).toISOString().split('T')[0];
+        const dateB = typeof b.data === 'string' ? b.data : 
+          new Date(b.data).toISOString().split('T')[0];
+        return dateA.localeCompare(dateB);
+      });
+
+    integranteAssignments.forEach(assignment => {
+      const assignmentDate = typeof assignment.data === 'string' ? assignment.data : 
+        new Date(assignment.data).toISOString().split('T')[0];
+      const dateObj = new Date(assignmentDate + 'T12:00:00');
+      const dayOfWeek = dateObj.getDay();
+      const isEscalaPreta = dayOfWeek >= 1 && dayOfWeek <= 5; // Segunda a sexta
+
+      if (assignment.tipo_atribuicao === 'folga') {
+        // Incrementar folgas da escala correspondente
+        if (isEscalaPreta) {
+          folgasPreta++;
+        } else {
+          folgasVermelha++;
+        }
+      } else if (assignment.tipo_atribuicao === 'trabalho') {
+        // Reset apenas da escala correspondente
+        if (isEscalaPreta) {
+          folgasPreta = 0;
+        } else {
+          folgasVermelha = 0;
+        }
+      }
+    });
+
+    const result = {
+      total: folgasPreta + folgasVermelha,
+      preta: folgasPreta,
+      vermelha: folgasVermelha
+    };
+
+    leavesCache.set(cacheKey, result);
+    return result;
   };
 
   // Função assíncrona para organizar dados no formato de calendário, incluindo feriados
@@ -326,8 +446,7 @@ export default function FolgasViewPage() {
       if (p.integrante?.nome) {
         const memberName = p.integrante.nome;
         calendarMatrix[memberName] = {};
-        let consecutiveDaysOffPreta = 0;
-        let consecutiveDaysOffVermelha = 0;
+        
         dates.forEach((date) => {
           const isEscalaVermelha = escalaVermelhaMap[date];
           const isEscalaPreta = !isEscalaVermelha;
@@ -343,12 +462,8 @@ export default function FolgasViewPage() {
               a.data === date &&
               a.tipo_atribuicao === "folga"
           );
+          
           if (workAssignment) {
-            if (isEscalaPreta) {
-              consecutiveDaysOffPreta = 0;
-            } else {
-              consecutiveDaysOffVermelha = 0;
-            }
             const especializacaoNome =
               workAssignment.especializacao?.nome || workAssignment.observacao;
             calendarMatrix[memberName][date] = {
@@ -358,14 +473,16 @@ export default function FolgasViewPage() {
               color: "#bbf7d0",
             };
           } else if (leaveAssignment) {
+            // Usar a função calculateCurrentLeaves para obter as folgas corretas até esta data
+            const folgasCalculadas = calculateCurrentLeaves(p.integrante_id, date);
+            
             let codigoFolga: number;
             if (isEscalaPreta) {
-              consecutiveDaysOffPreta++;
-              codigoFolga = consecutiveDaysOffPreta;
+              codigoFolga = folgasCalculadas.preta;
             } else {
-              consecutiveDaysOffVermelha++;
-              codigoFolga = consecutiveDaysOffVermelha;
+              codigoFolga = folgasCalculadas.vermelha;
             }
+            
             calendarMatrix[memberName][date] = {
               codigo: codigoFolga,
               tipo: "folga",

@@ -22,8 +22,8 @@ export interface EscalaFolgaParticipacaoType {
   id: string;
   escala_folga_id: string;
   integrante_id: string;
-  folgas_iniciais: number;
-  folgas_atuais: number;
+  folgas_iniciais_preta: number; // Folgas iniciais para escala preta (segunda a sexta)
+  folgas_iniciais_vermelha: number; // Folgas iniciais para escala vermelha (fins de semana e feriados)
   ativo: boolean;
   apenas_contabiliza_folgas?: boolean; // Para integrantes de férias/licença
   tipo_participacao?: TipoParticipacaoEscala; // Tipo de participação na escala

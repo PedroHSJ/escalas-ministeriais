@@ -471,7 +471,6 @@ export default function FolgasCreatePage() {
         .select(
           `
           integrante_id,
-          folgas_atuais,
           apenas_contabiliza_folgas,
           integrante:integrantes(
             id,
@@ -483,11 +482,13 @@ export default function FolgasCreatePage() {
 
       if (error) throw error;
 
+      // Para obter as folgas atuais, precisamos consultar a tabela de atribuições
+      // Por enquanto, vamos definir como 0 e calcular posteriormente se necessário
       const preview =
         participacoes?.map((p: any) => ({
           id: p.integrante.id,
           nome: p.integrante.nome,
-          folgasAtuais: p.folgas_atuais,
+          folgasAtuais: 0, // Será calculado posteriormente baseado nas atribuições
           apenasContabilizaFolgas: p.apenas_contabiliza_folgas,
           jaAdicionado: scaleMembers.some((m) => m.id === p.integrante.id),
         })) || [];
@@ -543,7 +544,6 @@ export default function FolgasCreatePage() {
         .select(
           `
           integrante_id,
-          folgas_atuais,
           apenas_contabiliza_folgas,
           integrante:integrantes(
             id,
@@ -1246,30 +1246,37 @@ export default function FolgasCreatePage() {
   };
 
   const generateSchedule = async () => {
-    if (scaleMembers.length < 2) {
-      toast.error("É necessário pelo menos 2 integrantes para gerar a escala");
-      return;
-    }
+    try {
+      console.log("🚀 Iniciando geração de escala...");
+      console.log("📊 Membros na escala:", scaleMembers.length);
+      
+      if (scaleMembers.length < 2) {
+        toast.error("É necessário pelo menos 2 integrantes para gerar a escala");
+        return;
+      }
 
-    const schedule: Array<{
-      date: Date;
-      working: EscalaFolgaMember[];
-      onLeave: EscalaFolgaMember[];
-      assignments: Record<string, EscalaFolgaMember[]>; // Por especialização
-    }> = [];
+      const schedule: Array<{
+        date: Date;
+        working: EscalaFolgaMember[];
+        onLeave: EscalaFolgaMember[];
+        assignments: Record<string, EscalaFolgaMember[]>; // Por especialização
+      }> = [];
 
-    // Arrays para capturar logs importantes para o toast
-    const importantLogs: string[] = [];
-    const excludedFromConsecutiveRed: string[] = [];
-    const noEligibleForConsecutiveRed: string[] = [];
+      // Arrays para capturar logs importantes para o toast
+      const importantLogs: string[] = [];
+      const excludedFromConsecutiveRed: string[] = [];
+      const noEligibleForConsecutiveRed: string[] = [];
 
-    // Separar membros ativos (que trabalham) dos que apenas contabilizam folgas
-    const activeMembersOnly = scaleMembers.filter(
-      (member) => !member.apenasContabilizaFolgas
-    );
-    const membersOnlyForLeaveCount = scaleMembers.filter(
-      (member) => member.apenasContabilizaFolgas
-    );
+      // Separar membros ativos (que trabalham) dos que apenas contabilizam folgas
+      const activeMembersOnly = scaleMembers.filter(
+        (member) => !member.apenasContabilizaFolgas
+      );
+      const membersOnlyForLeaveCount = scaleMembers.filter(
+        (member) => member.apenasContabilizaFolgas
+      );
+      
+      console.log("👥 Membros ativos:", activeMembersOnly.length);
+      console.log("🏖️ Membros apenas folgas:", membersOnlyForLeaveCount.length);
 
     // Agrupar membros ATIVOS por especialização
     const membersBySpecialization = new Map<string, EscalaFolgaMember[]>();
@@ -1293,14 +1300,18 @@ export default function FolgasCreatePage() {
     });
 
     // Validar que cada especialização tem pelo menos 2 pessoas ATIVAS para rotação
+    console.log("🔍 Validando especializações...");
     for (const [specName, members] of membersBySpecialization.entries()) {
+      console.log(`🏷️ Especialização "${specName}": ${members.length} membros`);
       if (members.length < 2) {
+        console.log(`❌ Falha na validação: "${specName}" tem apenas ${members.length} membro(s)`);
         toast.error(
           `A especialização "${specName}" precisa de pelo menos 2 pessoas ATIVAS (não em férias/licença) para gerar a escala de folgas`
         );
         return;
       }
     }
+    console.log("✅ Todas as especializações válidas!");
 
     // Criar cópia dos membros que só contabilizam folgas para atualizar suas folgas
     const membersOnlyForLeaveCountCopy = membersOnlyForLeaveCount.map(
@@ -2405,6 +2416,7 @@ export default function FolgasCreatePage() {
     });
     setScaleMembers(updatedScaleMembers);
 
+    console.log("📅 Escala gerada com sucesso! Total de dias:", schedule.length);
     setGeneratedSchedule(schedule);
 
     // Preparar informações adicionais para o toast
@@ -2416,9 +2428,16 @@ export default function FolgasCreatePage() {
     //   additionalInfo += `\n\nInformações importantes:\n${allLogs.join('\n')}`;
     // }
 
-    toast.success("Escala gerada com sucesso!", {
-      description: additionalInfo,
-    });
+      console.log("🎉 Finalizando geração da escala...");
+      toast.success("Escala gerada com sucesso!", {
+        description: additionalInfo,
+      });
+    } catch (error) {
+      console.error("💥 Erro durante geração da escala:", error);
+      toast.error("Erro ao gerar escala", {
+        description: error instanceof Error ? error.message : "Erro desconhecido"
+      });
+    }
   };
 
   const saveScale = async () => {
@@ -2463,10 +2482,11 @@ export default function FolgasCreatePage() {
       const participacoes = scaleMembers.map((member) => ({
         escala_folga_id: newScale.id,
         integrante_id: member.id,
-        folgas_iniciais: member.folgasIniciais,
-        folgas_atuais: member.folgasAtuais,
+        folgas_iniciais_preta: member.folgasInicaisPreta || 0,
+        folgas_iniciais_vermelha: member.folgasIniciaisVermelha || 0,
         ativo: member.ativo,
         apenas_contabiliza_folgas: member.apenasContabilizaFolgas || false,
+        tipo_participacao: member.tipoParticipacao || 'ambas'
       }));
 
       const { data: participacoesData, error: participacoesError } = await supabase
