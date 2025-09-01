@@ -2469,6 +2469,9 @@ export default function FolgasCreatePage() {
             selectedObservacaoTemplate === "none"
               ? null
               : selectedObservacaoTemplate,
+          // NOVAS COLUNAS DE COMPARTILHAMENTO
+          proprietario_id: userId, // ID do usuário que está criando
+          compartilhada: false, // Por padrão, não compartilhada
         })
         .select()
         .single();

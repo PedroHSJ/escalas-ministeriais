@@ -5,6 +5,9 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import FeriadoManager from "@/utils/feriados";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import CompartilharEscalaDialog from "@/components/escala-folgas/CompartilharEscalaDialog";
+import ExportarEscalaODS from "@/components/escala-folgas/ExportarEscalaODS";
+import { useEscalaPermissions } from "@/hooks/useEscalaPermissions";
 
 interface CalendarData {
   dates: string[];
@@ -33,6 +36,9 @@ interface CalendarTableProps {
   getSpecializationColor?: (index: number) => string;
   showLegend?: boolean;
   feriadoManager?: FeriadoManager;
+  escalaId?: string;
+  escalaNome?: string;
+  showActions?: boolean;
 }
 
 export default function CalendarTable({
@@ -41,9 +47,14 @@ export default function CalendarTable({
   getSpecializationColor,
   feriadoManager,
   showLegend = true,
+  escalaId,
+  escalaNome,
+  showActions = false,
 }: CalendarTableProps) {
   const { userId } = useAuth();
   const { selectedOrganization } = useOrganization();
+  const { podeAdministrar } = useEscalaPermissions(escalaId || "");
+
   // Função padrão para cores das especializações
   const defaultGetSpecializationColor = (index: number) => {
     const colors = [
@@ -83,6 +94,30 @@ export default function CalendarTable({
   const showMonth = true; // Forçando para sempre mostrar o mês
   return (
     <div className="space-y-4 max-w-full">
+      {/* Ações da Escala */}
+      {showActions && escalaId && escalaNome && (
+        <div className="flex items-center justify-between bg-secondary p-4 rounded-lg">
+          <div>
+            <h3 className="text-lg font-semibold">{escalaNome}</h3>
+            <p className="text-sm text-muted-foreground">
+              Gerencie e exporte sua escala
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {podeAdministrar() && (
+              <CompartilharEscalaDialog
+                escalaId={escalaId}
+                escalaNome={escalaNome}
+              />
+            )}
+            <ExportarEscalaODS
+              calendarData={calendarData}
+              escalaNome={escalaNome}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Legenda das Especializações */}
       {showLegend && calendarData.specializations.length > 0 && (
         <div className="bg-secondary p-3 rounded-lg">

@@ -16,6 +16,13 @@ export interface EscalaFolgaType {
   _count?: {
     participacoes: number;
   };
+  // Novos campos para compartilhamento
+  compartilhada?: boolean;
+  proprietario_id?: string;
+  permissoes_compartilhamento?: EscalaPermissoesCompartilhamento[];
+  // Campos para controle de acesso
+  tipo_acesso?: "proprietario" | "visualizacao" | "edicao" | "administrador";
+  compartilhada_por?: string;
 }
 
 export interface EscalaFolgaParticipacaoType {
@@ -87,4 +94,48 @@ export interface EscalaFolgaAssignment {
   especializacaoId?: string;
   especializacaoNome?: string;
   observacao?: string;
+}
+
+// Novos tipos para compartilhamento
+export interface EscalaPermissoesCompartilhamento {
+  id: string;
+  escala_folga_id: string;
+  usuario_id: string;
+  tipo_permissao: "visualizacao" | "edicao" | "administrador";
+  created_at: string;
+  usuario?: {
+    id: string;
+    email: string;
+    nome?: string;
+  };
+}
+
+export interface EscalaCompartilhamento {
+  id: string;
+  escala_folga_id: string;
+  usuario_id: string;
+  tipo_permissao: "visualizacao" | "edicao" | "administrador";
+  created_at: string;
+  escala?: {
+    id: string;
+    nome: string;
+    departamento?: {
+      nome: string;
+      organizacao?: {
+        nome: string;
+      };
+    };
+  };
+  usuario?: {
+    id: string;
+    email: string;
+    nome?: string;
+  };
+}
+
+// Tipos para funções RPC
+export interface UsuarioRPC {
+  id: string;
+  email: string;
+  nome: string;
 }

@@ -1339,6 +1339,9 @@ export default function FolgasViewPage() {
                   getMemberSpecializationColor={getMemberSpecializationColor}
                   getSpecializationColor={getSpecializationColor}
                   showLegend={true}
+                  escalaId={scaleId || ""}
+                  escalaNome={scale?.nome || ""}
+                  showActions={true}
                 />
               )}
             </div>

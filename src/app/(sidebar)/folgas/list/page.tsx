@@ -74,7 +74,7 @@ interface EditDialog {
 }
 
 export default function FolgasListPage() {
-  const { userId } = useAuth();
+  const { userId, user } = useAuth();
   const [scales, setScales] = useState<EscalaFolgaType[]>([]);
   const [filteredScales, setFilteredScales] = useState<EscalaFolgaType[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
@@ -153,33 +153,75 @@ export default function FolgasListPage() {
   const fetchAllScales = async () => {
     setLoading(true);
 
-    const { data, error } = await supabase
-      .from("escalas_folgas")
-      .select(
-        `
-        *,
-        departamentos!inner (
-          nome,
-          tipo_departamento,
-          organizacoes!inner (
+    try {
+      // Buscar escalas criadas pelo usuário
+      const { data: ownedScales, error: ownedError } = await supabase
+        .from("escalas_folgas")
+        .select(
+          `
+          *,
+          departamentos!inner (
             nome,
-            tipo,
-            user_id
+            tipo_departamento,
+            organizacoes!inner (
+              nome,
+              tipo,
+              user_id
+            )
+          ),
+          escala_folgas_participacoes (
+            id,
+            integrante_id,
+            ativo
           )
-        ),
-        escala_folgas_participacoes (
-          id,
-          integrante_id,
-          ativo
+        `
         )
-      `
-      )
-      .eq("departamentos.organizacoes.user_id", userId)
-      .is("deleted_at", null) // Filtrar apenas escalas não excluídas
-      .order("created_at", { ascending: false });
+        .eq("departamentos.organizacoes.user_id", userId)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false });
 
-    if (!error && data) {
-      const scalesWithDetails = data.map((scale) => ({
+      if (ownedError) throw ownedError;
+
+      // Buscar escalas compartilhadas com o usuário
+      const { data: userData } = await supabase.auth.getUser();
+      const userEmail = user?.email;
+      
+      if (!userEmail) {
+        console.error("Email do usuário não encontrado");
+        return;
+      }
+
+      const { data: sharedScales, error: sharedError } = await supabase
+        .from("escala_folgas_compartilhamento")
+        .select(
+          `
+          tipo_permissao,
+          escalas_folgas (
+            *,
+            departamentos (
+              nome,
+              tipo_departamento,
+              organizacoes (
+                nome,
+                tipo,
+                user_id
+              )
+            ),
+            escala_folgas_participacoes (
+              id,
+              integrante_id,
+              ativo
+            )
+          )
+        `
+        )
+        .eq("email_usuario", userEmail)
+        .is("escalas_folgas.deleted_at", null);
+
+      if (sharedError) throw sharedError;
+
+      // Combinar e processar escalas próprias
+      const ownedScalesWithDetails = (ownedScales || []).map((scale) => ({
         ...scale,
         departamento: {
           nome: scale.departamentos?.nome,
@@ -194,60 +236,148 @@ export default function FolgasListPage() {
             scale.escala_folgas_participacoes?.filter((p: any) => p.ativo)
               .length || 0,
         },
+        tipo_acesso: "proprietario" as const,
       }));
-      setScales(scalesWithDetails);
-      setFilteredScales(scalesWithDetails);
-    }
 
-    setLoading(false);
+      // Processar escalas compartilhadas
+      const sharedScalesWithDetails = (sharedScales || []).map((share) => {
+        const escala = share.escalas_folgas as any;
+        if (!escala) return null;
+        
+        return {
+          ...escala,
+          departamento: {
+            nome: Array.isArray(escala.departamentos) ? escala.departamentos[0]?.nome : escala.departamentos?.nome,
+            tipo_departamento: Array.isArray(escala.departamentos) ? escala.departamentos[0]?.tipo_departamento : escala.departamentos?.tipo_departamento,
+            organizacao: {
+              nome: Array.isArray(escala.departamentos) ? escala.departamentos[0]?.organizacoes?.nome : escala.departamentos?.organizacoes?.nome,
+              tipo: Array.isArray(escala.departamentos) ? escala.departamentos[0]?.organizacoes?.tipo : escala.departamentos?.organizacoes?.tipo,
+            },
+          },
+          _count: {
+            participacoes:
+              (Array.isArray(escala.escala_folgas_participacoes) ? escala.escala_folgas_participacoes : [escala.escala_folgas_participacoes])?.filter((p: any) => p?.ativo)
+                .length || 0,
+          },
+          tipo_acesso: share.tipo_permissao as "visualizacao" | "edicao" | "administrador",
+          compartilhada_por: escala.proprietario_id,
+        };
+      }).filter(Boolean);
+
+      // Combinar todas as escalas e ordenar por data de criação
+      const allScales = [...ownedScalesWithDetails, ...sharedScalesWithDetails]
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      setScales(allScales);
+      setFilteredScales(allScales);
+    } catch (error) {
+      console.error("Erro ao carregar escalas:", error);
+      toast.error("Erro ao carregar escalas");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const fetchScalesByOrganization = async (organizationId: string) => {
     setLoading(true);
 
-    // Primeiro verificar se a organização pertence ao usuário
-    const { data: orgData, error: orgError } = await supabase
-      .from("organizacoes")
-      .select("id")
-      .eq("id", organizationId)
-      .eq("user_id", userId)
-      .single();
+    try {
+      // Primeiro verificar se a organização pertence ao usuário
+      const { data: orgData, error: orgError } = await supabase
+        .from("organizacoes")
+        .select("id")
+        .eq("id", organizationId)
+        .eq("user_id", userId)
+        .single();
 
-    if (orgError || !orgData) {
-      console.error("Acesso negado: organização não pertence ao usuário");
-      setLoading(false);
-      return;
-    }
+      if (orgError || !orgData) {
+        console.error("Acesso negado: organização não pertence ao usuário");
+        setLoading(false);
+        return;
+      }
 
-    const { data, error } = await supabase
-      .from("escalas_folgas")
-      .select(
-        `
-        *,
-        departamentos!inner (
-          nome,
-          tipo_departamento,
-          organizacao_id,
-          organizacoes!inner (
+      // Buscar escalas criadas pelo usuário na organização específica
+      const { data: ownedScales, error: ownedError } = await supabase
+        .from("escalas_folgas")
+        .select(
+          `
+          *,
+          departamentos!inner (
             nome,
-            tipo,
-            user_id
+            tipo_departamento,
+            organizacao_id,
+            organizacoes!inner (
+              nome,
+              tipo,
+              user_id
+            )
+          ),
+          escala_folgas_participacoes (
+            id,
+            integrante_id,
+            ativo
           )
-        ),
-        escala_folgas_participacoes (
-          id,
-          integrante_id,
-          ativo
+        `
         )
-      `
-      )
-      .eq("departamentos.organizacao_id", organizationId)
-      .eq("departamentos.organizacoes.user_id", userId)
-      .is("deleted_at", null) // Filtrar apenas escalas não excluídas
-      .order("created_at", { ascending: false });
+        .eq("departamentos.organizacao_id", organizationId)
+        .eq("departamentos.organizacoes.user_id", userId)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false });
 
-    if (!error && data) {
-      const scalesWithDetails = data.map((scale) => ({
+      if (ownedError) throw ownedError;
+
+      // Buscar escalas compartilhadas com o usuário na organização específica
+      const { data: userData } = await supabase.auth.getUser();
+      const userEmail = userData.user?.email;
+      
+      if (!userEmail) {
+        console.error("Email do usuário não encontrado");
+        setLoading(false);
+        return;
+      }
+
+      const { data: sharedScales, error: sharedError } = await supabase
+        .from("escala_folgas_compartilhamento")
+        .select(
+          `
+          tipo_permissao,
+          escalas_folgas (
+            *,
+            departamentos (
+              nome,
+              tipo_departamento,
+              organizacao_id,
+              organizacoes (
+                nome,
+                tipo,
+                user_id
+              )
+            ),
+            escala_folgas_participacoes (
+              id,
+              integrante_id,
+              ativo
+            )
+          )
+        `
+        )
+        .eq("email_usuario", userEmail)
+        .is("escalas_folgas.deleted_at", null);
+
+      if (sharedError) throw sharedError;
+
+      // Filtrar escalas compartilhadas que pertencem à organização específica
+      const sharedScalesInOrg = (sharedScales || []).filter((share) => {
+        const escala = share.escalas_folgas as any;
+        if (!escala) return false;
+        
+        // Verificar se a escala pertence à organização selecionada
+        const departamento = Array.isArray(escala.departamentos) ? escala.departamentos[0] : escala.departamentos;
+        return departamento?.organizacao_id === organizationId;
+      });
+
+      // Combinar e processar escalas próprias
+      const ownedScalesWithDetails = (ownedScales || []).map((scale) => ({
         ...scale,
         departamento: {
           nome: scale.departamentos?.nome,
@@ -262,12 +392,46 @@ export default function FolgasListPage() {
             scale.escala_folgas_participacoes?.filter((p: any) => p.ativo)
               .length || 0,
         },
+        tipo_acesso: "proprietario" as const,
       }));
-      setScales(scalesWithDetails);
-      setFilteredScales(scalesWithDetails);
-    }
 
-    setLoading(false);
+      // Processar escalas compartilhadas
+      const sharedScalesWithDetails = sharedScalesInOrg.map((share) => {
+        const escala = share.escalas_folgas as any;
+        if (!escala) return null;
+        
+        return {
+          ...escala,
+          departamento: {
+            nome: Array.isArray(escala.departamentos) ? escala.departamentos[0]?.nome : escala.departamentos?.nome,
+            tipo_departamento: Array.isArray(escala.departamentos) ? escala.departamentos[0]?.tipo_departamento : escala.departamentos?.tipo_departamento,
+            organizacao: {
+              nome: Array.isArray(escala.departamentos) ? escala.departamentos[0]?.organizacoes?.nome : escala.departamentos?.organizacoes?.nome,
+              tipo: Array.isArray(escala.departamentos) ? escala.departamentos[0]?.organizacoes?.tipo : escala.departamentos?.organizacoes?.tipo,
+            },
+          },
+          _count: {
+            participacoes:
+              (Array.isArray(escala.escala_folgas_participacoes) ? escala.escala_folgas_participacoes : [escala.escala_folgas_participacoes])?.filter((p: any) => p?.ativo)
+                .length || 0,
+          },
+          tipo_acesso: share.tipo_permissao as "visualizacao" | "edicao" | "administrador",
+          compartilhada_por: escala.proprietario_id,
+        };
+      }).filter(Boolean);
+
+      // Combinar todas as escalas e ordenar por data de criação
+      const allScales = [...ownedScalesWithDetails, ...sharedScalesWithDetails]
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      setScales(allScales);
+      setFilteredScales(allScales);
+    } catch (error) {
+      console.error("Erro ao carregar escalas da organização:", error);
+      toast.error("Erro ao carregar escalas da organização");
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
