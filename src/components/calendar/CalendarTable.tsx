@@ -6,7 +6,7 @@ import FeriadoManager from "@/utils/feriados";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import CompartilharEscalaDialog from "@/components/escala-folgas/CompartilharEscalaDialog";
-import ExportarEscalaODS from "@/components/escala-folgas/ExportarEscalaODS";
+import ExportarEscalaXLS from "@/components/escala-folgas/ExportarEscalaXLS";
 import { useEscalaPermissions } from "@/hooks/useEscalaPermissions";
 
 interface CalendarData {
@@ -110,7 +110,7 @@ export default function CalendarTable({
                 escalaNome={escalaNome}
               />
             )}
-            <ExportarEscalaODS
+            <ExportarEscalaXLS
               calendarData={calendarData}
               escalaNome={escalaNome}
             />
