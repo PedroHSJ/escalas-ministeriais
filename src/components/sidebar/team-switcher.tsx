@@ -121,6 +121,7 @@ export function TeamSwitcher() {
             </DropdownMenuLabel>
             {organizations.map((org, index) => {
               const OrgIcon = getOrganizationIcon(org.tipo);
+
               return (
                 <DropdownMenuItem
                   key={org.id}
@@ -137,7 +138,6 @@ export function TeamSwitcher() {
                       {org.tipo}
                     </span>
                   </div>
-                  <DropdownMenuShortcut>⌘{index + 1}</DropdownMenuShortcut>
                 </DropdownMenuItem>
               );
             })}
