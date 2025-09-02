@@ -834,8 +834,13 @@ export default function FolgasCreatePage() {
     especializacaoId?: string,
     apenasContabilizaFolgas = false
   ) => {
-    if (scaleMembers.find((m) => m.id === member.id)) {
-      toast.error("Este integrante já foi adicionado à escala");
+    // Permitir adicionar o mesmo integrante mais de uma vez, desde que seja para especializações diferentes
+    if (
+      scaleMembers.find(
+        (m) => m.id === member.id && m.especializacaoId === especializacaoId
+      )
+    ) {
+      toast.error("Este integrante já foi adicionado à escala com essa especialização");
       return;
     }
 
@@ -957,7 +962,9 @@ export default function FolgasCreatePage() {
   };
 
   const addMembersBySpecialization = (especializacaoId: string) => {
-    const especialização = specializations.find(
+    const especialização = specializations
+
+    .find(
       (s) => s.id === especializacaoId
     );
 
@@ -966,10 +973,12 @@ export default function FolgasCreatePage() {
       return;
     }
 
-    // Filtrar membros que têm esta especialização e não estão na escala
+    // Filtrar membros que têm esta especialização e não estão na escala com ela
     const availableMembers = members.filter((member) => {
-      // Verificar se o membro não está na escala
-      const alreadyInScale = scaleMembers.find((sm) => sm.id === member.id);
+      // Verificar se o membro já está na escala com essa especialização
+      const alreadyInScale = scaleMembers.find(
+        (sm) => sm.id === member.id && sm.especializacaoId === especializacaoId
+      );
       if (alreadyInScale) return false;
 
       // Verificar se o membro tem a especialização desejada
@@ -3274,7 +3283,7 @@ export default function FolgasCreatePage() {
                                       }
                                     ).length;
 
-                                    return (
+                                    return availableCount > 0 ? (
                                       <SelectItem
                                         key={spec.id}
                                         value={spec.id}
@@ -3283,7 +3292,7 @@ export default function FolgasCreatePage() {
                                         {spec.nome} ({availableCount} disponível
                                         {availableCount !== 1 ? "is" : ""})
                                       </SelectItem>
-                                    );
+                                    ) : null;
                                   })}
                                 </SelectContent>
                               </Select>
