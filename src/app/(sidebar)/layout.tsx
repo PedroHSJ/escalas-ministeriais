@@ -13,6 +13,7 @@ import { NavigationProvider } from "@/contexts/NavigationContext";
 import { NavigationLoading } from "@/components/ui/navigation-loading";
 import { Suspense } from "react";
 import { Toaster } from "sonner";
+import ThemeSwitcher from "@/components/toggle/theme-switcher";
 
 export default function RootLayout({
   children,
@@ -47,7 +48,7 @@ export default function RootLayout({
                       </div>
                       <div className="flex items-center gap-2 px-4">
                         <VersionDisplay variant="badge" showDetails={true} />
-                        <ModeToggle />
+                        <ThemeSwitcher />
                       </div>
                     </header>
                     <Suspense
