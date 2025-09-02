@@ -10,6 +10,8 @@ import FeriadosPersonalizados from "@/components/feriados/FeriadosPersonalizados
 import { NavigationButton } from "@/components/ui/navigation-button";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { TitleH1 } from "@/components/typography/title-h1";
+import { Paragraph } from "@/components/typography/paragraph";
 
 export default function FeriadosPage() {
   const { selectedOrganization } = useOrganization();
@@ -81,21 +83,17 @@ export default function FeriadosPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-6 p-6">
+    <div className="flex flex-1 flex-col gap-6">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <NavigationButton href="/dashboard" variant="outline" size="sm">
-            <ArrowLeft className="h-4 w-4" />
-          </NavigationButton>
           <div>
-            <h1 className="text-3xl font-bold">Gerenciar Feriados</h1>
-            <p className="text-muted-foreground">
-              Configure feriados personalizados e visualize o calendário
-              nacional
-            </p>
+            {/* <h1 className="text-3xl font-bold">Feriados</h1> */}
+            <TitleH1 text={"Feriados"} />
+            {/* <p className="text-muted-foreground">
+              Visualize e gerencie os feriados
+            </p> */}
+            <Paragraph text={"Visualize e gerencie os feriados"} />
           </div>
         </div>
-      </div>
 
       {/* <div className="grid gap-6 lg:grid-cols-2">
 

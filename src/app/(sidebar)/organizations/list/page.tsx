@@ -36,6 +36,8 @@ import Link from "next/link";
 import FilterBar from "@/components/filters/FilterBar";
 import Pagination from "@/components/pagination/Pagination";
 import { useAuth } from "@/contexts/AuthContext";
+import { TitleH1 } from "@/components/typography/title-h1";
+import { Paragraph } from "@/components/typography/paragraph";
 
 interface Organization {
   id: string;
@@ -370,10 +372,8 @@ export default function Page() {
         {/* Cabeçalho */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold">Lista de organizações</h1>
-            <p className="text-muted-foreground">
-              Visualize e gerencie todas as suas organizações
-            </p>
+              <TitleH1 text="Lista de organizações" />
+              <Paragraph text="Visualize e gerencie todas as suas organizações" />
           </div>
           <NavigationButton href="/organizations/create">
             <Plus className="mr-2 h-4 w-4" />

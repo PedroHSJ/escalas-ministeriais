@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { TitleH1 } from "@/components/typography/title-h1";
+import { Paragraph } from "@/components/typography/paragraph";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -61,10 +63,9 @@ export default function ConvitesListPage() {
 
   return (
     <div className="max-w-2xl mx-auto py-8">
-      <Card>
-        <CardHeader>
-          <CardTitle>Convites recebidos</CardTitle>
-        </CardHeader>
+      <TitleH1 text="Convites recebidos" />
+      <Paragraph text="Veja e gerencie os convites para organizações que você recebeu." />
+      <Card className="mt-4">
         <CardContent>
           {loading ? (
             <div>Carregando...</div>

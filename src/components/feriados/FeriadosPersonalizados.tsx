@@ -224,7 +224,7 @@ export default function FeriadosPersonalizados({
           </div>
 
           <div className="flex items-center gap-2">
-            <Button
+            {/* <Button
               variant="outline"
               size="sm"
               onClick={exportarFeriados}
@@ -249,7 +249,7 @@ export default function FeriadosPersonalizados({
                 <Upload className="h-4 w-4" />
                 Importar
               </Button>
-            </div>
+            </div> */}
 
             <Dialog open={dialogAberto} onOpenChange={setDialogAberto}>
               <DialogTrigger asChild>

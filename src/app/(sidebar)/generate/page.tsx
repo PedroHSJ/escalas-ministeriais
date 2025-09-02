@@ -327,10 +327,8 @@ export default function Page() {
       <div className="flex flex-1 flex-col gap-6 p-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold">Gerar Nova Escala</h1>
-            <p className="text-muted-foreground">
-              Crie e configure uma nova escala definindo integrantes, datas e especializações
-            </p>
+              <TitleH1 text="Gerar Nova Escala" />
+              <Paragraph text="Crie e configure uma nova escala definindo integrantes, datas e especializações" />
           </div>
         </div>
 

@@ -30,6 +30,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { TitleH1 } from "@/components/typography/title-h1";
+import { Paragraph } from "@/components/typography/paragraph";
 
 interface DashboardStats {
   totalDepartments: number;
@@ -247,10 +249,8 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground">
-            Visão geral da {selectedOrganization.nome}
-          </p>
+          <TitleH1 text="Dashboard" />
+          <Paragraph text={`Visão geral da ${selectedOrganization.nome}`} />
         </div>
       </div>
 
