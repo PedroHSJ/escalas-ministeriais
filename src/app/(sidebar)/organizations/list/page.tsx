@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, Suspense } from "react";
+import { InviteOrganizationDialog } from "@/components/organizations/InviteOrganizationDialog";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { NavigationButton } from "@/components/ui/navigation-button";
@@ -86,6 +87,7 @@ export default function Page() {
   >();
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(false);
+  const [inviteDialog, setInviteDialog] = useState<{ open: boolean; orgId?: string }>({ open: false });
 
   // Estados da paginação
   const [currentPage, setCurrentPage] = useState(1);
@@ -99,31 +101,26 @@ export default function Page() {
   });
 
   const fetchOrganizations = async () => {
-    console.log("Fetching organizations for user:", userId);
-    if (!userId) {
-      console.log("No userId available, skipping fetch");
-      return;
-    }
-
+    if (!userId) return;
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("organizacoes")
-        .select("*")
-        .eq("user_id", userId)
-        .order("nome");
+      // Buscar organizações que o usuário gerencia
+      const { data: orgs1, error: error1 } = await supabase
+        .from("usuario_organizacoes")
+        .select("organizacoes(*)")
+        .eq("usuario_id", userId);
 
-      console.log("Organizations query result:", { data, error });
-
-      if (!error && data) {
-        setOrganizations(data);
-        setfilteredOrganizations(data);
-        console.log("Organizations loaded:", data.length);
-      } else if (error) {
-        console.error("Error fetching organizations:", error);
-      }
+      // Unir e filtrar duplicatas
+      const allOrgs = [
+        ...(orgs1?.map((o: any) => o.organizacoes) || []),
+      ];
+      const uniqueOrgs = allOrgs.filter(
+        (org, idx, arr) => org && arr.findIndex((o) => o.id === org.id) === idx
+      );
+      setOrganizations(uniqueOrgs);
+      setfilteredOrganizations(uniqueOrgs);
     } catch (error) {
-      console.error("Unexpected error fetching organizations:", error);
+      console.error("Erro ao buscar organizações:", error);
     } finally {
       setLoading(false);
     }
@@ -467,6 +464,13 @@ export default function Page() {
                             <Button
                               variant="outline"
                               size="sm"
+                              onClick={() => setInviteDialog({ open: true, orgId: org.id })}
+                            >
+                              Convidar
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
                               onClick={() =>
                                 console.log("Delete organization:", org.id)
                               }
@@ -543,6 +547,13 @@ export default function Page() {
                               >
                                 <Edit className="h-4 w-4" />
                               </NavigationButton>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setInviteDialog({ open: true, orgId: org.id })}
+                              >
+                                Convidar
+                              </Button>
                               {/* <Button
                                 variant="outline"
                                 size="sm"
@@ -551,6 +562,11 @@ export default function Page() {
                                 <Trash2 className="h-4 w-4" />
                               </Button> */}
                             </div>
+      <InviteOrganizationDialog
+        open={inviteDialog.open}
+        onOpenChange={open => setInviteDialog({ open })}
+        organizacaoId={inviteDialog.orgId || ""}
+      />
                           </TableCell>
                           {/* <TableCell>
                             <div>

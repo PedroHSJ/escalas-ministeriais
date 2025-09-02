@@ -37,30 +37,34 @@ export function OrganizationProvider({
 
   const fetchOrganizations = async () => {
     if (!userId) return;
-
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("organizacoes")
-        .select("*")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false });
+      // Buscar organizações que o usuário gerencia
+      const { data: orgs1, error: error1 } = await supabase
+        .from("usuario_organizacoes")
+        .select("organizacoes(*)")
+        .eq("usuario_id", userId);
 
-      if (!error && data) {
-        setOrganizations(data);
+      // Unir e filtrar duplicatas
+      const allOrgs = [
+        ...(orgs1?.map((o: any) => o.organizacoes) || []),
+      ];
+      const uniqueOrgs = allOrgs.filter(
+        (org, idx, arr) => org && arr.findIndex((o) => o.id === org.id) === idx
+      );
+      setOrganizations(uniqueOrgs);
 
-        // Se não há organização selecionada, selecionar a primeira
-        if (!selectedOrganization && data.length > 0) {
-          setSelectedOrganization(data[0]);
-        }
+      // Se não há organização selecionada, selecionar a primeira
+      if (!selectedOrganization && uniqueOrgs.length > 0) {
+        setSelectedOrganization(uniqueOrgs[0]);
+      }
 
-        // Se a organização selecionada não existe mais na lista, selecionar a primeira
-        if (
-          selectedOrganization &&
-          !data.find((org) => org.id === selectedOrganization.id)
-        ) {
-          setSelectedOrganization(data[0] || null);
-        }
+      // Se a organização selecionada não existe mais na lista, selecionar a primeira
+      if (
+        selectedOrganization &&
+        !uniqueOrgs.find((org) => org.id === selectedOrganization.id)
+      ) {
+        setSelectedOrganization(uniqueOrgs[0] || null);
       }
     } catch (error) {
       console.error("Erro ao buscar organizações:", error);

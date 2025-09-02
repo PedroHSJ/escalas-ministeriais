@@ -76,23 +76,23 @@ export const useOrganizationWizard = (): UseOrganizationWizardReturn => {
   const submitWizard = useCallback(
     async (userId: string): Promise<boolean> => {
       setIsLoading(true);
+
       try {
         console.log("Iniciando criação da organização...", {
           nome: wizardData.organizationName,
           tipo: wizardData.organizationType,
-          user_id: userId,
         });
 
         console.log(
           "Especializações a serem criadas:",
           wizardData.departmentSpecializations
-        ); // 1. Criar organização (UUID será gerado automaticamente)
+        );
+        // 1. Criar organização (UUID será gerado automaticamente)
         const { data: orgData, error: orgError } = await supabase
           .from("organizacoes")
           .insert({
             nome: wizardData.organizationName,
             tipo: wizardData.organizationType,
-            user_id: userId,
           })
           .select()
           .single();
@@ -103,6 +103,15 @@ export const useOrganizationWizard = (): UseOrganizationWizardReturn => {
         }
 
         console.log("Organização criada:", orgData);
+
+        // 1b. Inserir relacionamento usuario_organizacoes
+        const { error: userOrgError } = await supabase
+          .from("usuario_organizacoes")
+          .insert({ usuario_id: userId, organizacao_id: orgData.id });
+        if (userOrgError) {
+          console.error("Erro ao inserir usuario_organizacoes:", userOrgError);
+          throw new Error(`Erro ao vincular usuário à organização: ${userOrgError.message}`);
+        }
 
         // 2. Criar departamentos
         const allDepartments = [

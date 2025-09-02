@@ -24,7 +24,7 @@ import { useAuth } from "@/contexts/AuthContext";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { user, userId, loading } = useAuth();
-  const pathname = usePathname();
+  const pathname = usePathname() || "";
 
   // Criar dados do usuário para o NavUser
   const userData = {
@@ -56,7 +56,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           {
             title: "Organização",
             url: "/organizations/list",
-            isActive: pathname.startsWith("/organizations"),
+            isActive: pathname.startsWith("/organizations/list"),
+          },
+          {
+            title: "Meus Convites",
+            url: "/organizations/convites",
+            isActive: pathname.startsWith("/organizations/convites"),
           },
           {
             title: "Departamentos",
