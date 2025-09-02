@@ -2,6 +2,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface InviteOrganizationDialogProps {
   open: boolean;
@@ -14,6 +15,7 @@ export function InviteOrganizationDialog({ open, onOpenChange, organizacaoId, on
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const {userId} = useAuth();
 
   const handleInvite = async () => {
     setLoading(true);
@@ -22,7 +24,7 @@ export function InviteOrganizationDialog({ open, onOpenChange, organizacaoId, on
       const res = await fetch("/api/convites", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, organizacaoId })
+        body: JSON.stringify({ email, organizacaoId, criado_por: userId })
       });
       if (!res.ok) throw new Error("Erro ao enviar convite");
       setEmail("");

@@ -39,7 +39,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { TitleH1 } from "@/components/typography/title-h1";
 import { Paragraph } from "@/components/typography/paragraph";
 
-interface Organization {
+export interface Organization {
   id: string;
   nome: string;
   tipo: string;
