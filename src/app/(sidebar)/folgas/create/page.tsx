@@ -2966,36 +2966,6 @@ export default function FolgasCreatePage() {
               <p className="text-muted-foreground">
                 Configure a escala de folgas para o setor selecionado, adicione
                 integrantes e gere a escala automaticamente.
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="ml-2 cursor-help text-blue-600 hover:text-blue-800 font-medium">
-                        ℹ️ Regras de Feriados
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-sm">
-                      <div className="space-y-2">
-                        <p className="font-semibold text-blue-700">
-                          Regras de Feriados na Escala Preta e Vermelha:
-                        </p>
-                        <ul className="text-xs space-y-1">
-                          <li>
-                            • Feriados nacionais aparecem destacados em vermelho
-                            🎄
-                          </li>
-                          <li>
-                            • Em feriados, mais pessoas ficam de folga (escala
-                            reduzida)
-                          </li>
-                          <li>
-                            • Períodos especiais (Natal/Ano Novo) têm regras
-                            diferenciadas ⭐
-                          </li>
-                        </ul>
-                      </div>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
               </p>
             </div>
           </div>
