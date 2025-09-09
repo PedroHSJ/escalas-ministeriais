@@ -55,7 +55,7 @@ export default function EditDepartmentPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const departmentId = params.id as string;
+  const departmentId = params?.id as string;
 
   useEffect(() => {
     const fetchDepartment = async () => {

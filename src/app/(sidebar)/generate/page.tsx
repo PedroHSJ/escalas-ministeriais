@@ -11,6 +11,8 @@ import { CalendarIcon, PrinterIcon, Download, Users, Building2, Plus, X, Save } 
 import { format, getDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
+import { TitleH1 } from "@/components/typography/title-h1";
+import { Paragraph } from "@/components/typography/paragraph";
 
 interface Organization {
   id: string;

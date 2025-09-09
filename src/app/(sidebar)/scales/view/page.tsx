@@ -55,7 +55,7 @@ const DAYS_OF_WEEK = [
 export default function Page() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const scaleId = searchParams.get("id");
+  const scaleId = searchParams?.get("id");
   
   const [scale, setScale] = useState<Scale | null>(null);
   const [participations, setParticipations] = useState<Participation[]>([]);

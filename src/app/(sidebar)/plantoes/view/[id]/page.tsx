@@ -80,10 +80,10 @@ export default function ViewPlantao() {
   }, [user]);
 
   useEffect(() => {
-    if (organization?.id && params.id) {
+    if (organization?.id && params?.id) {
       fetchEscalaData();
     }
-  }, [organization, params.id]);
+  }, [organization, params?.id]);
 
   const fetchOrganization = async () => {
     if (!user?.id) return;
@@ -115,7 +115,7 @@ export default function ViewPlantao() {
           departamento:departamentos(id, nome)
         `
         )
-        .eq("id", params.id)
+        .eq("id", params?.id)
         .single();
 
       if (escalaError) throw escalaError;
@@ -132,7 +132,7 @@ export default function ViewPlantao() {
           substituto:integrantes!integrante_substituto_id(id, nome, telefone)
         `
         )
-        .eq("escala_plantao_id", params.id)
+        .eq("escala_plantao_id", params?.id)
         .order("data", { ascending: true })
         .order("tipo_turno.hora_inicio", { ascending: true });
 

@@ -71,10 +71,10 @@ export default function GeneratePlantoes() {
   }, [user]);
 
   useEffect(() => {
-    if (organization?.id && params.id) {
+    if (organization?.id && params?.id) {
       fetchData();
     }
-  }, [organization, params.id]);
+  }, [organization, params?.id]);
 
   const fetchOrganization = async () => {
     if (!user?.id) return;
@@ -106,7 +106,7 @@ export default function GeneratePlantoes() {
           departamento:departamentos(id, nome)
         `
         )
-        .eq("id", params.id)
+        .eq("id", params?.id)
         .single();
 
       if (escalaError) throw escalaError;
@@ -122,7 +122,7 @@ export default function GeneratePlantoes() {
           integrante:integrantes(id, nome, telefone)
         `
           )
-          .eq("escala_plantao_id", params.id)
+          .eq("escala_plantao_id", params?.id)
           .eq("ativo", true);
 
       if (participacoesError) throw participacoesError;

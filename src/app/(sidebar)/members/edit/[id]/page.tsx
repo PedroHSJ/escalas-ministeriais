@@ -72,7 +72,7 @@ interface Member {
 export default function EditMemberPage() {
   const params = useParams();
   const router = useRouter();
-  const memberId = params.id as string;
+  const memberId = params?.id as string;
 
   const [userId, setUserId] = useState("");
   const [member, setMember] = useState<Member | null>(null);

@@ -67,7 +67,7 @@ interface Specialization {
 
 export default function Page() {
   const searchParams = useSearchParams();
-  const editId = searchParams.get("edit");
+  const editId = searchParams?.get("edit");
 
   const { userId } = useAuth();
   const [organizations, setOrganizations] = useState<Organization[]>([]);

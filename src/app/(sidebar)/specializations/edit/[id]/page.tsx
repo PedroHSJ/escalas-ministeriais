@@ -75,7 +75,7 @@ export default function EditSpecializationPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const specializationId = params.id as string;
+  const specializationId = params?.id as string;
 
   useEffect(() => {
     const fetchData = async () => {

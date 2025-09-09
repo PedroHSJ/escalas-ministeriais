@@ -51,7 +51,7 @@ export default function EditOrganizationPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const organizationId = params.id as string;
+  const organizationId = params?.id as string;
 
   useEffect(() => {
     const fetchOrganization = async () => {

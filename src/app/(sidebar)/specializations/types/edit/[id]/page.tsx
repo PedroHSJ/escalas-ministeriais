@@ -54,7 +54,7 @@ export default function EditSpecializationTypePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const typeId = params.id as string;
+  const typeId = params?.id as string;
 
   useEffect(() => {
     const fetchSpecializationType = async () => {
