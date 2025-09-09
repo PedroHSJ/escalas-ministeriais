@@ -66,7 +66,10 @@ export default function EditSpecializationTypePage() {
           .select(
             `
             *,
-            organizacao:organizacoes(nome, user_id)
+            organizacao:organizacoes(
+              nome,
+              usuario_organizacoes!inner(usuario_id)
+            )
           `
           )
           .eq("id", typeId)
@@ -80,8 +83,15 @@ export default function EditSpecializationTypePage() {
         }
 
         if (data) {
-          // Verificar se o usuário é dono da organização
-          if (data.organizacao?.user_id !== userId) {
+          // Verificar se o usuário tem acesso à organização através da tabela usuario_organizacoes
+          const { data: userOrgCheck } = await supabase
+            .from("usuario_organizacoes")
+            .select("id")
+            .eq("usuario_id", userId)
+            .eq("organizacao_id", data.organizacao_id)
+            .single();
+
+          if (!userOrgCheck) {
             toast.error("Você não tem permissão para editar este tipo");
             router.push("/specializations/list");
             return;

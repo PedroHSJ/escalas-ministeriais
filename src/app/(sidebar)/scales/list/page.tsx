@@ -87,8 +87,13 @@ export default function Page() {
     
     const { data, error } = await supabase
       .from('organizacoes')
-      .select('*')
-      .eq('user_id', userId)
+      .select(`
+        *,
+        usuario_organizacoes!inner (
+          usuario_id
+        )
+      `)
+      .eq('usuario_organizacoes.usuario_id', userId)
       .order('nome');
     
     if (!error && data) {
@@ -120,13 +125,15 @@ export default function Page() {
       .from('escalas')
       .select(`
         *,
-        departamentos (
+        departamentos!inner (
           nome,
           tipo_departamento,
-          organizacoes (
+          organizacoes!inner (
             nome,
             tipo,
-            user_id
+            usuario_organizacoes!inner (
+              usuario_id
+            )
           )
         ),
         escala_participacoes (
@@ -140,7 +147,7 @@ export default function Page() {
           )
         )
       `)
-      .eq('departamentos.organizacoes.user_id', userId)
+      .eq('departamentos.organizacoes.usuario_organizacoes.usuario_id', userId)
       .order('created_at', { ascending: false });
     
     if (!error && data) {

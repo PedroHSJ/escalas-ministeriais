@@ -164,9 +164,13 @@ export default function Page() {
   };
 
   const handlePrint = () => {
-    const printContent = document.getElementById('print-scale');
-    if (!printContent) {
-      toast.error('Erro ao preparar impressão');
+    if (participations.length === 0) {
+      toast.error('Não há participações para imprimir');
+      return;
+    }
+
+    if (!scale) {
+      toast.error('Dados da escala não disponíveis');
       return;
     }
 
@@ -177,45 +181,162 @@ export default function Page() {
       return;
     }
 
-    // HTML completo para a janela de impressão
-    const htmlContent = `
+    // Organizar participações por data
+    const sortedParticipations = participations.sort((a, b) => 
+      new Date(a.data).getTime() - new Date(b.data).getTime()
+    );
+    
+    // Criar cabeçalhos da tabela
+    const headerRow = `
+      <tr>
+        <th style="width: 100px;">Data</th>
+        <th style="width: 120px;">Dia da Semana</th>
+        <th style="width: 200px;">Integrante</th>
+        <th style="width: 150px;">Especialização</th>
+      </tr>
+    `;
+
+    // Criar linhas da tabela
+    const tableContent = sortedParticipations.map((participation, index) => {
+      const date = new Date(participation.data);
+      const dayOfWeek = DAYS_OF_WEEK[getDay(date)];
+      
+      return `
+        <tr style="${index % 2 === 0 ? 'background-color: #f9f9f9;' : ''}">
+          <td style="text-align: center;">${format(date, "dd/MM/yyyy", { locale: ptBR })}</td>
+          <td style="text-align: center;">${dayOfWeek}</td>
+          <td>${participation.integrantes?.nome || 'Nome não disponível'}</td>
+          <td style="text-align: center;">${participation.especializacoes?.nome || 'Sem especialização'}</td>
+        </tr>
+      `;
+    }).join('');
+
+    // Calcular período da escala
+    const startDate = sortedParticipations[0]?.data ? new Date(sortedParticipations[0].data) : new Date();
+    const endDate = sortedParticipations[sortedParticipations.length - 1]?.data ? 
+      new Date(sortedParticipations[sortedParticipations.length - 1].data) : new Date();
+
+    const organizationName = scale.departamento?.organizacao?.nome || "ORGANIZAÇÃO";
+    const departmentName = scale.departamento?.nome || "DEPARTAMENTO";
+
+    const printHTML = `
       <!DOCTYPE html>
-      <html lang="pt-BR">
-        <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Impressão - ${scale?.nome}</title>
-          <script src="https://cdn.tailwindcss.com"></script>
-          <style>
-            @media print {
-              body { 
-                margin: 0;
-                padding: 20px;
-                font-family: system-ui, -apple-system, sans-serif;
-              }
-              .no-print { display: none !important; }
-              .page-break { page-break-before: always; }
-              table { width: 100%; border-collapse: collapse; }
-              th, td { border: 1px solid #e5e7eb; padding: 8px; text-align: left; }
-              th { background-color: #f9fafb; font-weight: 600; }
-            }
-          </style>
-        </head>
-        <body class="bg-white">
-          ${printContent.outerHTML}
-        </body>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Escala de Serviço - ${scale.nome}</title>
+        <style>
+          @page {
+            size: A4;
+            margin: 15mm;
+          }
+          body {
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            line-height: 1.2;
+            margin: 0;
+            padding: 0;
+          }
+          .header {
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #000;
+            padding-bottom: 10px;
+          }
+          .organization-name {
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+          }
+          .scale-title {
+            font-size: 13px;
+            font-weight: bold;
+            margin-bottom: 3px;
+            text-transform: uppercase;
+          }
+          .period {
+            font-size: 11px;
+            margin-bottom: 5px;
+          }
+          .scale-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+          }
+          .scale-table th,
+          .scale-table td {
+            border: 1px solid #000;
+            text-align: left;
+            vertical-align: middle;
+            font-size: 10px;
+            padding: 8px;
+          }
+          .scale-table th {
+            background-color: #f5f5f5;
+            font-weight: bold;
+            text-align: center;
+          }
+          .footer {
+            margin-top: 30px;
+            text-align: center;
+            font-size: 10px;
+          }
+          .signature-section {
+            margin-top: 40px;
+            text-align: center;
+          }
+          .signature-line {
+            border-bottom: 1px solid #000;
+            width: 300px;
+            margin: 0 auto 5px auto;
+          }
+          @media print {
+            body { -webkit-print-color-adjust: exact; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="organization-name">${organizationName}</div>
+          <div class="scale-title">ESCALA DE SERVIÇO - ${departmentName.toUpperCase()}</div>
+          <div class="scale-title">${scale.nome.toUpperCase()}</div>
+          <div class="period">PERÍODO: ${format(startDate, "dd/MM/yyyy", { locale: ptBR })} a ${format(endDate, "dd/MM/yyyy", { locale: ptBR })}</div>
+        </div>
+
+        <table class="scale-table">
+          <thead>
+            ${headerRow}
+          </thead>
+          <tbody>
+            ${tableContent}
+          </tbody>
+        </table>
+
+        <div class="footer">
+          <div>${organizationName}, ${format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}.</div>
+        </div>
+
+        <div class="signature-section">
+          <div style="margin-top: 60px;">
+            <div class="signature-line"></div>
+            <div style="margin-top: 5px; font-weight: bold;">
+              RESPONSÁVEL PELA ESCALA<br>
+              ${organizationName}
+            </div>
+          </div>
+        </div>
+      </body>
       </html>
     `;
 
-    printWindow.document.write(htmlContent);
+    printWindow.document.write(printHTML);
     printWindow.document.close();
     
     // Aguardar o carregamento e imprimir
     printWindow.onload = () => {
-      setTimeout(() => {
-        printWindow.print();
-        printWindow.close();
-      }, 500);
+      printWindow.print();
+      printWindow.close();
     };
     
     toast.success('Preparando impressão...');
@@ -382,89 +503,81 @@ export default function Page() {
                 </div>
               ) : (
                 <div className="space-y-6 print:space-y-4">
-                  {/* Participações Agrupadas por Dia */}
-                  <div className="space-y-6 print:space-y-4">
-                    {Object.entries(groupedParticipations).map(([dayDate, dayParticipations]) => (
-                      <div key={dayDate} className="space-y-3 print:space-y-2 print:break-inside-avoid">
-                        <h4 className="font-semibold text-lg border-b border-muted pb-2 flex items-center gap-2 print:text-base print:pb-1 print:border-gray-300">
-                          <Clock className="h-5 w-5 print:h-4 print:w-4" />
-                          {dayDate}
-                        </h4>
-                        
-                        {/* Visualização em Cards para mobile - ocultar na impressão */}
-                        <div className="block md:hidden print:hidden space-y-3">
-                          {dayParticipations.map((participation) => (
-                            <Card key={participation.id}>
-                              <CardContent className="p-4">
-                                <div className="flex items-center gap-3">
-                                  <Avatar className="h-10 w-10">
-                                    <AvatarFallback className="bg-blue-100 text-blue-600">
-                                      {getInitials(participation.integrantes?.nome || "??")}
-                                    </AvatarFallback>
-                                  </Avatar>
-                                  <div className="flex-1">
-                                    <div className="font-medium">{participation.integrantes?.nome}</div>
-                                    <div className="text-sm text-blue-600">
-                                      {participation.especializacoes?.nome}
-                                    </div>
-                                    {participation.observacao && (
-                                      <div className="text-xs text-muted-foreground mt-1">
-                                        {participation.observacao}
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          ))}
-                        </div>
-
-                        {/* Visualização em Tabela para desktop e impressão */}
-                        <div className="hidden md:block print:block">
-                          <Table className="print:border-collapse print:w-full">
-                            <TableHeader>
-                              <TableRow className="print:border-b print:border-gray-300">
-                                <TableHead className="print:border print:border-gray-300 print:bg-gray-50 print:p-2 print:font-semibold">
-                                  Integrante
-                                </TableHead>
-                                <TableHead className="print:border print:border-gray-300 print:bg-gray-50 print:p-2 print:font-semibold">
-                                  Especialização
-                                </TableHead>
-                                <TableHead className="print:border print:border-gray-300 print:bg-gray-50 print:p-2 print:font-semibold">
-                                  Observações
-                                </TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {dayParticipations && dayParticipations.map((participation) => (
-                                <TableRow key={participation.id} className="print:border-b print:border-gray-200">
+                  {/* Tabela única com todas as participações */}
+                  <div className="space-y-4">
+                    <h4 className="font-semibold text-lg print:text-base">
+                      Participações da Escala ({participations.length} total)
+                    </h4>
+                    
+                    <div className="border rounded-lg overflow-hidden print:border-gray-300">
+                      <Table className="print:border-collapse print:w-full">
+                        <TableHeader>
+                          <TableRow className="print:border-b print:border-gray-300">
+                            <TableHead className="print:border print:border-gray-300 print:bg-gray-50 print:p-2 print:font-semibold w-24">
+                              Data
+                            </TableHead>
+                            <TableHead className="print:border print:border-gray-300 print:bg-gray-50 print:p-2 print:font-semibold w-32">
+                              Dia da Semana
+                            </TableHead>
+                            <TableHead className="print:border print:border-gray-300 print:bg-gray-50 print:p-2 print:font-semibold">
+                              Integrante
+                            </TableHead>
+                            <TableHead className="print:border print:border-gray-300 print:bg-gray-50 print:p-2 print:font-semibold w-40">
+                              Especialização
+                            </TableHead>
+                            <TableHead className="print:border print:border-gray-300 print:bg-gray-50 print:p-2 print:font-semibold print:hidden">
+                              Observações
+                            </TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {participations
+                            .sort((a, b) => new Date(a.data).getTime() - new Date(b.data).getTime())
+                            .map((participation, index) => {
+                              const date = new Date(participation.data);
+                              const dayOfWeek = DAYS_OF_WEEK[getDay(date)];
+                              
+                              return (
+                                <TableRow 
+                                  key={participation.id} 
+                                  className={`print:border-b print:border-gray-200 ${
+                                    index % 2 === 0 ? 'bg-white print:bg-white' : 'bg-muted/30 print:bg-gray-50'
+                                  }`}
+                                >
+                                  <TableCell className="print:border print:border-gray-300 print:p-2 print:text-center">
+                                    <span className="font-medium print:text-sm">
+                                      {format(date, "dd/MM/yyyy", { locale: ptBR })}
+                                    </span>
+                                  </TableCell>
+                                  <TableCell className="print:border print:border-gray-300 print:p-2 print:text-center">
+                                    <span className="print:text-sm">{dayOfWeek}</span>
+                                  </TableCell>
                                   <TableCell className="print:border print:border-gray-300 print:p-2">
                                     <div className="flex items-center gap-3 print:gap-2">
-                                      <Avatar className="h-8 w-8 print:h-6 print:w-6">
-                                        <AvatarFallback className="bg-blue-100 text-blue-600 text-xs print:text-xs print:bg-gray-200 print:text-gray-700">
+                                      <Avatar className="h-8 w-8 print:hidden">
+                                        <AvatarFallback className="bg-blue-100 text-blue-600 text-xs">
                                           {getInitials(participation.integrantes?.nome || "??")}
                                         </AvatarFallback>
                                       </Avatar>
                                       <span className="font-medium print:text-sm">{participation.integrantes?.nome}</span>
                                     </div>
                                   </TableCell>
-                                  <TableCell className="print:border print:border-gray-300 print:p-2">
-                                    <Badge variant="secondary" className="print:bg-gray-200 print:text-gray-800 print:text-xs print:px-2 print:py-1 print:rounded">
-                                      {participation.especializacoes?.nome}
+                                  <TableCell className="print:border print:border-gray-300 print:p-2 print:text-center">
+                                    <Badge variant="secondary" className="print:bg-transparent print:border print:border-gray-400 print:text-gray-800 print:text-xs print:px-2 print:py-1 print:rounded">
+                                      {participation.especializacoes?.nome || "Sem especialização"}
                                     </Badge>
                                   </TableCell>
-                                  <TableCell className="print:border print:border-gray-300 print:p-2">
+                                  <TableCell className="print:border print:border-gray-300 print:p-2 print:hidden">
                                     <span className="text-sm text-muted-foreground print:text-xs print:text-gray-600">
                                       {participation.observacao || "—"}
                                     </span>
                                   </TableCell>
                                 </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      </div>
-                    ))}
+                              );
+                            })}
+                        </TableBody>
+                      </Table>
+                    </div>
                   </div>
                 </div>
               )}

@@ -23,9 +23,9 @@ export default function AuthCallback() {
         
         // Verificar se o usuário já tem uma organização
         const { data: organizations, error: orgError } = await supabase
-          .from('organizacoes')
-          .select('id')
-          .eq('user_id', data.session.user.id)
+          .from('usuario_organizacoes')
+          .select('organizacao_id')
+          .eq('usuario_id', data.session.user.id)
           .limit(1);
         
         if (orgError) {
