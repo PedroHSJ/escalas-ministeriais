@@ -1,6 +1,8 @@
 {
-  "version": "1.1.5",
-  "buildDate": "2025-09-09T18:36:49.212Z",
+  "version": "1.1.5-beta.1",
+  "isBeta": true,
+  "betaStage": "beta",
+  "buildDate": "2025-09-09T19:08:20.526Z",
   "environment": "development",
   "gitTag": null,
   "gitCommit": null,
@@ -10,5 +12,5 @@
   "vercelEnv": null,
   "vercelRegion": null,
   "nodeVersion": "v22.17.0",
-  "buildTime": 1757443009213
+  "buildTime": 1757444900527
 }
