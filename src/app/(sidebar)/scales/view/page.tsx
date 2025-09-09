@@ -12,6 +12,7 @@ import { ptBR } from "date-fns/locale";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
+import { NavigationButton } from "@/components/ui/navigation-button";
 
 interface Scale {
   id: string;
@@ -348,12 +349,12 @@ export default function Page() {
         <div className="text-center py-12">
           <h1 className="text-2xl font-bold">Escala não encontrada</h1>
           <p className="text-muted-foreground mb-4">ID da escala não foi fornecido.</p>
-          <Link href="/scales/list">
-            <Button>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Voltar à Lista
-            </Button>
-          </Link>
+          <NavigationButton
+            href="/scales/list"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Voltar à Lista
+          </NavigationButton>
         </div>
       </div>
     );
@@ -387,12 +388,12 @@ export default function Page() {
         <div className="text-center py-12">
           <h1 className="text-2xl font-bold">Escala não encontrada</h1>
           <p className="text-muted-foreground mb-4">A escala solicitada não existe ou foi removida.</p>
-          <Link href="/scales/list">
-            <Button>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Voltar à Lista
-            </Button>
-          </Link>
+          <NavigationButton
+            href="/scales/list"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Voltar à Lista
+          </NavigationButton>
         </div>
       </div>
     );
@@ -410,12 +411,13 @@ export default function Page() {
         {/* Cabeçalho */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link href="/scales/list">
-              <Button variant="outline" size="sm">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Voltar
-              </Button>
-            </Link>
+            <NavigationButton
+            href="/scales/list"
+            variant="outline"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Voltar à Lista
+          </NavigationButton>
             <div>
               <h1 className="text-3xl font-bold">{scale.nome}</h1>
               <p className="text-muted-foreground">
@@ -427,10 +429,6 @@ export default function Page() {
             <Button onClick={handlePrint} variant="outline">
               <PrinterIcon className="mr-2 h-4 w-4" />
               Imprimir
-            </Button>
-            <Button>
-              <Edit className="mr-2 h-4 w-4" />
-              Editar
             </Button>
           </div>
         </div>
@@ -541,7 +539,7 @@ export default function Page() {
                                 <TableRow 
                                   key={participation.id} 
                                   className={`print:border-b print:border-gray-200 ${
-                                    index % 2 === 0 ? 'bg-white print:bg-white' : 'bg-muted/30 print:bg-gray-50'
+                                    index % 2 === 0 ? 'bg-secondary print:bg-white' : 'bg-muted/30 print:bg-gray-50'
                                   }`}
                                 >
                                   <TableCell className="print:border print:border-gray-300 print:p-2 print:text-center">
