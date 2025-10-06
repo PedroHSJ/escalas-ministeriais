@@ -72,7 +72,7 @@ interface Member {
 export default function EditMemberPage() {
   const params = useParams();
   const router = useRouter();
-  const memberId = params.id as string;
+  const memberId = params?.id as string;
 
   const [userId, setUserId] = useState("");
   const [member, setMember] = useState<Member | null>(null);
@@ -155,8 +155,13 @@ export default function EditMemberPage() {
 
     const { data, error } = await supabase
       .from("organizacoes")
-      .select("*")
-      .eq("user_id", userId)
+      .select(`
+        *,
+        usuario_organizacoes!inner (
+          usuario_id
+        )
+      `)
+      .eq("usuario_organizacoes.usuario_id", userId)
       .order("nome");
 
     if (!error && data) {

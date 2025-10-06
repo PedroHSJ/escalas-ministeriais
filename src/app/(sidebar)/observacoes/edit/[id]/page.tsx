@@ -26,7 +26,7 @@ import Link from "next/link";
 export default function ObservacoesEditPage() {
   const router = useRouter();
   const params = useParams();
-  const templateId = params.id as string;
+  const templateId = params?.id as string;
   const { userId } = useAuth();
   const { selectedOrganization } = useOrganization();
   const [loading, setLoading] = useState(false);

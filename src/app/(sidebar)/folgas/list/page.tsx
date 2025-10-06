@@ -115,8 +115,13 @@ export default function FolgasListPage() {
 
     const { data, error } = await supabase
       .from("organizacoes")
-      .select("*")
-      .eq("user_id", userId)
+      .select(`
+        *,
+        usuario_organizacoes!inner (
+          usuario_id
+        )
+      `)
+      .eq("usuario_organizacoes.usuario_id", userId)
       .order("nome");
 
     if (!error && data) {
@@ -132,11 +137,13 @@ export default function FolgasListPage() {
         `
         *,
         organizacoes!inner (
-          user_id
+          usuario_organizacoes!inner (
+            usuario_id
+          )
         )
       `
       )
-      .eq("organizacoes.user_id", userId)
+      .eq("organizacoes.usuario_organizacoes.usuario_id", userId)
       .order("nome");
 
     if (organizationId) {
@@ -166,7 +173,9 @@ export default function FolgasListPage() {
             organizacoes!inner (
               nome,
               tipo,
-              user_id
+              usuario_organizacoes!inner (
+                usuario_id
+              )
             )
           ),
           escala_folgas_participacoes (
@@ -176,7 +185,7 @@ export default function FolgasListPage() {
           )
         `
         )
-        .eq("departamentos.organizacoes.user_id", userId)
+        .eq("departamentos.organizacoes.usuario_organizacoes.usuario_id", userId)
         .is("deleted_at", null)
         .order("created_at", { ascending: false });
 
@@ -285,9 +294,14 @@ export default function FolgasListPage() {
       // Primeiro verificar se a organização pertence ao usuário
       const { data: orgData, error: orgError } = await supabase
         .from("organizacoes")
-        .select("id")
+        .select(`
+          id,
+          usuario_organizacoes!inner (
+            usuario_id
+          )
+        `)
         .eq("id", organizationId)
-        .eq("user_id", userId)
+        .eq("usuario_organizacoes.usuario_id", userId)
         .single();
 
       if (orgError || !orgData) {
@@ -309,7 +323,9 @@ export default function FolgasListPage() {
             organizacoes!inner (
               nome,
               tipo,
-              user_id
+              usuario_organizacoes!inner (
+                usuario_id
+              )
             )
           ),
           escala_folgas_participacoes (
@@ -320,7 +336,7 @@ export default function FolgasListPage() {
         `
         )
         .eq("departamentos.organizacao_id", organizationId)
-        .eq("departamentos.organizacoes.user_id", userId)
+        .eq("departamentos.organizacoes.usuario_organizacoes.usuario_id", userId)
         .is("deleted_at", null)
         .order("created_at", { ascending: false });
 
@@ -543,13 +559,15 @@ export default function FolgasListPage() {
           id,
           departamentos!inner (
             organizacoes!inner (
-              user_id
+              usuario_organizacoes!inner (
+                usuario_id
+              )
             )
           )
         `
         )
         .eq("id", editDialog.scale.id)
-        .eq("departamentos.organizacoes.user_id", userId)
+        .eq("departamentos.organizacoes.usuario_organizacoes.usuario_id", userId)
         .single();
 
       if (scaleError || !scaleData) {
@@ -598,7 +616,9 @@ export default function FolgasListPage() {
           organizacoes!inner (
             nome,
             tipo,
-            user_id
+            usuario_organizacoes!inner (
+              usuario_id
+            )
           )
         ),
         escala_folgas_participacoes (
@@ -608,7 +628,7 @@ export default function FolgasListPage() {
         )
       `
       )
-      .eq("departamentos.organizacoes.user_id", userId)
+      .eq("departamentos.organizacoes.usuario_organizacoes.usuario_id", userId)
       .not("deleted_at", "is", null) // Filtrar apenas escalas excluídas
       .order("deleted_at", { ascending: false });
 
@@ -645,13 +665,15 @@ export default function FolgasListPage() {
           id,
           departamentos!inner (
             organizacoes!inner (
-              user_id
+              usuario_organizacoes!inner (
+                usuario_id
+              )
             )
           )
         `
         )
         .eq("id", scaleId)
-        .eq("departamentos.organizacoes.user_id", userId)
+        .eq("departamentos.organizacoes.usuario_organizacoes.usuario_id", userId)
         .single();
 
       if (scaleError || !scaleData) {
@@ -703,13 +725,15 @@ export default function FolgasListPage() {
           id,
           departamentos!inner (
             organizacoes!inner (
-              user_id
+              usuario_organizacoes!inner (
+                usuario_id
+              )
             )
           )
         `
         )
         .eq("id", scaleId)
-        .eq("departamentos.organizacoes.user_id", userId)
+        .eq("departamentos.organizacoes.usuario_organizacoes.usuario_id", userId)
         .single();
 
       if (scaleError || !scaleData) {
@@ -765,13 +789,15 @@ export default function FolgasListPage() {
           id,
           departamentos!inner (
             organizacoes!inner (
-              user_id
+              usuario_organizacoes!inner (
+                usuario_id
+              )
             )
           )
         `
         )
         .eq("id", deleteDialog.scale.id)
-        .eq("departamentos.organizacoes.user_id", userId)
+        .eq("departamentos.organizacoes.usuario_organizacoes.usuario_id", userId)
         .single();
 
       if (scaleError || !scaleData) {

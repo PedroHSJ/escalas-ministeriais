@@ -14,9 +14,17 @@ function generateVersionInfo() {
     const packagePath = path.join(process.cwd(), 'package.json');
     const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
 
+    // Detecta se é versão beta
+    const version = packageJson.version;
+    const isBeta = version.includes('beta') || version.includes('b') || 
+                   process.env.VERCEL_ENV === 'preview' || 
+                   process.env.NODE_ENV === 'development';
+    
     // Obtém informações do ambiente
     const versionInfo = {
       version: packageJson.version,
+      isBeta,
+      betaStage: isBeta ? (version.includes('beta') ? 'beta' : 'development') : null,
       buildDate: new Date().toISOString(),
       environment: process.env.NODE_ENV || 'development',
       
@@ -45,11 +53,14 @@ function generateVersionInfo() {
     fs.writeFileSync(srcPath, JSON.stringify(versionInfo, null, 2));
 
     console.log('✅ Informações de versão geradas:');
-    console.log(`   Versão: ${versionInfo.version}`);
+    console.log(`   Versão: ${versionInfo.version}${isBeta ? ' (BETA)' : ''}`);
     console.log(`   Tag: ${versionInfo.gitTag || 'N/A'}`);
     console.log(`   Commit: ${versionInfo.gitCommitShort || 'N/A'}`);
     console.log(`   Ambiente: ${versionInfo.environment}`);
     console.log(`   Build: ${versionInfo.buildDate}`);
+    if (isBeta) {
+      console.log(`   🚧 Versão Beta Detectada: ${versionInfo.betaStage}`);
+    }
 
   } catch (error) {
     console.error('❌ Erro ao gerar informações de versão:', error.message);
@@ -57,6 +68,8 @@ function generateVersionInfo() {
     // Cria um arquivo básico mesmo em caso de erro
     const fallbackInfo = {
       version: '0.0.0',
+      isBeta: true,
+      betaStage: 'development',
       buildDate: new Date().toISOString(),
       environment: 'unknown',
       error: error.message

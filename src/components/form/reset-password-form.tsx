@@ -49,8 +49,8 @@ function ResetPasswordFormContent() {
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
   const { isNavigating } = useNavigation();
-  const token = searchParams.get("token");
-  const email = searchParams.get("email");
+  const token = searchParams?.get("token");
+  const email = searchParams?.get("email");
   const dev = process.env.NODE_ENV === "development";
 
   if ((!token || !email) && !dev) {

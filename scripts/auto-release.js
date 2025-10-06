@@ -384,7 +384,7 @@ function categorizeCommits(commits) {
 }
 
 // Função para gerar o corpo da release
-async function generateReleaseBody(version, type, commits) {
+async function generateReleaseBody(version, type, commits, isBeta = false, isStable = false) {
   const date = new Date().toLocaleDateString("pt-BR", {
     day: "2-digit",
     month: "long",
@@ -401,9 +401,33 @@ async function generateReleaseBody(version, type, commits) {
 
   let body = `**Data de Lançamento**: ${date}  
 **Versão**: ${version}  
-**Tipo**: ${typeLabels[type]}
+**Tipo**: ${typeLabels[type]}${isBeta ? ' - VERSÃO BETA' : isStable ? ' - VERSÃO ESTÁVEL' : ''}
+
+`;
+
+  if (isBeta) {
+    body += `## 🧪 **ATENÇÃO - VERSÃO BETA**
+
+⚠️ Esta é uma versão de teste e pode conter bugs ou funcionalidades instáveis.  
+🔄 Use apenas para testes e validação.  
+🚀 A versão estável será lançada após os testes.
 
 ---
+
+`;
+  } else if (isStable) {
+    body += `## ✅ **VERSÃO ESTÁVEL**
+
+🎉 Esta versão foi testada e validada através do ciclo beta.  
+✅ Pronta para uso em produção.  
+🚀 Todas as funcionalidades foram verificadas e aprovadas.
+
+---
+
+`;
+  }
+
+  body += `---
 
 `;
 
@@ -484,9 +508,13 @@ async function generateReleaseBody(version, type, commits) {
 
   body += `---
 
-**Sistema de Escalas v${version}**  
+**Sistema de Escalas v${version}**${isBeta ? ' - VERSÃO BETA' : isStable ? ' - VERSÃO ESTÁVEL' : ''}  
 
-*Esta versão foi testada e está pronta para produção.*`;
+${isBeta ? 
+'*Esta é uma versão beta para testes. Use com cautela em produção.*' : 
+isStable ?
+'*Esta versão foi validada através do ciclo beta e está pronta para produção.*' :
+'*Esta versão foi testada e está pronta para produção.*'}`;
 
   return body;
 }
@@ -596,9 +624,18 @@ function createReleaseWithApi(version, title, body, isPrerelease = false) {
 function main() {
   const args = process.argv.slice(2);
   const versionType = args[0] || "patch";
+  const isBeta = args.includes("--beta") || args.includes("-b");
+  const isStable = args.includes("--stable") || args.includes("-s");
 
   if (!["patch", "minor", "major"].includes(versionType)) {
     console.error("❌ Tipo de versão inválido. Use: patch, minor ou major");
+    console.log("💡 Opções disponíveis:");
+    console.log("   --beta   : Criar versão beta");
+    console.log("   --stable : Converter beta atual para versão estável");
+    console.log("📝 Exemplos:");
+    console.log("   node scripts/auto-release.js patch --beta");
+    console.log("   node scripts/auto-release.js patch --stable");
+    console.log("   node scripts/auto-release.js minor");
     process.exit(1);
   }
 
@@ -623,10 +660,41 @@ function main() {
       // 2. Ler versão atual
       const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8"));
       const currentVersion = packageJson.version;
-      const nextVersion = getNextVersion(currentVersion, versionType);
+      
+      let nextVersion;
+      if (isStable && currentVersion.includes('beta')) {
+        // Converter versão beta para estável (remover sufixo beta)
+        nextVersion = currentVersion.replace(/-beta\.\d+/, '');
+        console.log(`🎯 Convertendo versão beta para estável`);
+      } else if (isBeta) {
+        // Para versões beta, adiciona sufixo beta ou incrementa
+        if (currentVersion.includes('beta')) {
+          // Se já é beta, incrementa o número
+          const betaMatch = currentVersion.match(/(\d+\.\d+\.\d+)-beta\.(\d+)/);
+          if (betaMatch) {
+            const baseVersion = betaMatch[1];
+            const betaNumber = parseInt(betaMatch[2]) + 1;
+            nextVersion = `${baseVersion}-beta.${betaNumber}`;
+          } else {
+            nextVersion = getNextVersion(currentVersion.replace(/-beta.*/, ''), versionType) + '-beta.1';
+          }
+        } else {
+          // Se não é beta, cria a primeira versão beta da próxima versão
+          nextVersion = getNextVersion(currentVersion, versionType) + '-beta.1';
+        }
+      } else {
+        // Versão normal
+        const cleanVersion = currentVersion.replace(/-beta.*/, '');
+        nextVersion = getNextVersion(cleanVersion, versionType);
+      }
 
       console.log(`📦 Versão atual: ${currentVersion}`);
-      console.log(`🎯 Nova versão: ${nextVersion}`);
+      console.log(`🎯 Nova versão: ${nextVersion}${isBeta ? ' (BETA)' : isStable ? ' (ESTÁVEL)' : ''}`);
+      if (isBeta) {
+        console.log(`🚧 Criando release BETA - versão de teste`);
+      } else if (isStable) {
+        console.log(`✅ Convertendo BETA para versão ESTÁVEL`);
+      }
 
       // 3. Obter commits
       const commits = getCommitsSinceLastTag();
@@ -645,9 +713,15 @@ function main() {
 
       // 4. Atualizar versão no package.json
       console.log(`🏷️  Atualizando versão para ${nextVersion}...`);
-      execSync(`npm version ${versionType} --no-git-tag-version`, {
-        stdio: "pipe",
-      });
+      if (isBeta || isStable) {
+        // Para versões beta ou conversão para estável, atualizar manualmente o package.json
+        packageJson.version = nextVersion;
+        fs.writeFileSync('package.json', JSON.stringify(packageJson, null, 2) + '\n');
+      } else {
+        execSync(`npm version ${versionType} --no-git-tag-version`, {
+          stdio: "pipe",
+        });
+      }
 
       // 5. Commit da nova versão
       execSync("git add package.json package-lock.json", { stdio: "pipe" });
@@ -665,11 +739,14 @@ function main() {
 
       // 8. Gerar conteúdo da release
       const title = `${
-        versionType === "major" ? "🚀" : versionType === "minor" ? "✨" : "🔧"
-      } Release v${nextVersion}`;
+        isBeta ? "🧪" : 
+        isStable ? "🚀" :
+        versionType === "major" ? "🚀" : 
+        versionType === "minor" ? "✨" : "🔧"
+      } ${isBeta ? "Beta " : isStable ? "Stable " : ""}Release v${nextVersion}`;
 
       console.log("🌐 Traduzindo mensagens dos commits...");
-      const body = await generateReleaseBody(nextVersion, versionType, commits);
+      const body = await generateReleaseBody(nextVersion, versionType, commits, isBeta, isStable);
 
       // 9. Criar release no GitHub
       console.log("📋 Criando release no GitHub...");
@@ -682,7 +759,7 @@ function main() {
           nextVersion,
           title,
           body,
-          versionType === "major"
+          isBeta // Apenas versões beta são marcadas como prerelease
         );
       } else {
         console.log("🌐 Usando API do GitHub...");
@@ -690,7 +767,7 @@ function main() {
           nextVersion,
           title,
           body,
-          versionType === "major"
+          isBeta // Apenas versões beta são marcadas como prerelease
         );
       }
 

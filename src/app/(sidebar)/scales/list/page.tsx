@@ -13,6 +13,9 @@ import moment from "moment";
 import "moment/locale/pt-br";
 import Link from "next/link";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
+import { useOrganization } from "@/contexts/OrganizationContext";
+import { NavigationButton } from "@/components/ui/navigation-button";
 
 // Configurar locale do moment
 moment.locale('pt-br');
@@ -59,8 +62,6 @@ interface Scale {
 }
 
 export default function Page() {
-  const [userId, setUserId] = useState("");
-  const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [scales, setScales] = useState<Scale[]>([]);
   const [filteredScales, setFilteredScales] = useState<Scale[]>([]);
@@ -68,7 +69,8 @@ export default function Page() {
   const [selectedDepartment, setSelectedDepartment] = useState<string | undefined>();
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(false);
-  
+  const { userId } = useAuth();
+  const { organizations } = useOrganization();
   // Dialog de confirmação de exclusão
   const [deleteDialog, setDeleteDialog] = useState({
     isOpen: false,
@@ -76,28 +78,33 @@ export default function Page() {
     isDeleting: false
   });
 
-  const fetchSession = async () => {
-    const { data } = await supabase.auth.getSession();
-    if (data.session?.user) {
-      setUserId(data.session.user.id);
-    } else {
-      setUserId("d7e39c07-f7e4-4065-8e3a-aac5ccb02f1b");
-    }
-  };
+  // const fetchSession = async () => {
+  //   const { data } = await supabase.auth.getSession();
+  //   if (data.session?.user) {
+  //     setUserId(data.session.user.id);
+  //   } else {
+  //     setUserId("d7e39c07-f7e4-4065-8e3a-aac5ccb02f1b");
+  //   }
+  // };
 
-  const fetchOrganizations = async () => {
-    if (!userId) return;
+  // const fetchOrganizations = async () => {
+  //   if (!userId) return;
     
-    const { data, error } = await supabase
-      .from('organizacoes')
-      .select('*')
-      .eq('user_id', userId)
-      .order('nome');
+  //   const { data, error } = await supabase
+  //     .from('organizacoes')
+  //     .select(`
+  //       *,
+  //       usuario_organizacoes!inner (
+  //         usuario_id
+  //       )
+  //     `)
+  //     .eq('usuario_organizacoes.usuario_id', userId)
+  //     .order('nome');
     
-    if (!error && data) {
-      setOrganizations(data);
-    }
-  };
+  //   if (!error && data) {
+  //     setOrganizations(data);
+  //   }
+  // };
 
   const fetchDepartments = async (organizationId?: string) => {
     let query = supabase
@@ -123,13 +130,15 @@ export default function Page() {
       .from('escalas')
       .select(`
         *,
-        departamentos (
+        departamentos!inner (
           nome,
           tipo_departamento,
-          organizacoes (
+          organizacoes!inner (
             nome,
             tipo,
-            user_id
+            usuario_organizacoes!inner (
+              usuario_id
+            )
           )
         ),
         escala_participacoes (
@@ -143,7 +152,7 @@ export default function Page() {
           )
         )
       `)
-      .eq('departamentos.organizacoes.user_id', userId)
+      .eq('departamentos.organizacoes.usuario_organizacoes.usuario_id', userId)
       .order('created_at', { ascending: false });
     
     if (!error && data) {
@@ -241,12 +250,7 @@ export default function Page() {
   };
 
   useEffect(() => {
-    fetchSession();
-  }, []);
-
-  useEffect(() => {
     if (userId) {
-      fetchOrganizations();
       fetchDepartments();
       fetchAllScales();
     }
@@ -390,12 +394,12 @@ export default function Page() {
               Visualize e gerencie todas as escalas das suas organizações
             </p>
           </div>
-          <Link href="/generate">
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Nova Escala
-            </Button>
-          </Link>
+          <NavigationButton
+              href="/scales/create"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Nova Escala
+          </NavigationButton>
         </div>
 
         {/* Filtros */}
@@ -527,11 +531,11 @@ export default function Page() {
                               </p>
                             </div>
                             <div className="flex gap-1 ml-2">
-                              <Link href={`/scales/view?id=${scale.id}`}>
-                                <Button variant="outline" size="sm">
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-                              </Link>
+                              <NavigationButton
+                                href={`/scales/view?id=${scale.id}`}
+                              >
+                                <Eye className="h-4 w-4" />
+                              </NavigationButton>
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -610,11 +614,13 @@ export default function Page() {
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex gap-1 justify-end">
-                                <Link href={`/scales/view?id=${scale.id}`}>
-                                  <Button variant="outline" size="sm">
+                                <NavigationButton
+                                href={`/scales/view?id=${scale.id}`}
+                                value="outline" size="sm"
+                                >
                                     <Eye className="h-4 w-4" />
-                                  </Button>
-                                </Link>
+                                </NavigationButton>
+                                
                                 <Button
                                   variant="outline"
                                   size="sm"

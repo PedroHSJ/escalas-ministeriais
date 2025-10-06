@@ -70,7 +70,7 @@ export default function FolgasViewPage() {
   );
   const searchParams = useSearchParams();
   const router = useRouter();
-  const scaleId = searchParams.get("id");
+  const scaleId = searchParams?.get("id");
 
   // Todos os hooks de estado devem ser declarados no topo, antes de qualquer condicional
   const [scale, setScale] = useState<EscalaFolgaType | null>(null);

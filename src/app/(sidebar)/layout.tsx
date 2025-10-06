@@ -2,6 +2,7 @@ import "@/app/globals.css";
 import { AppSidebar } from "@/components/sidebar/app-sidebar";
 import { ModeToggle } from "@/components/toggle/dark-mode";
 import { VersionDisplay } from "@/components/ui/version-display";
+import { BetaIndicator } from "@/components/ui/beta-indicator";
 import { Separator } from "@/components/ui/separator";
 import {
   SidebarInset,
@@ -47,6 +48,7 @@ export default function RootLayout({
                         />
                       </div>
                       <div className="flex items-center gap-2 px-4">
+                        <BetaIndicator variant="pill" size="sm" />
                         <VersionDisplay variant="badge" showDetails={true} />
                         <ThemeSwitcher />
                       </div>

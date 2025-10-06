@@ -98,11 +98,11 @@ export function OrganizationProvider({
           {
             event: "*",
             schema: "public",
-            table: "organizacoes",
-            filter: `user_id=eq.${userId}`,
+            table: "usuario_organizacoes",
+            filter: `usuario_id=eq.${userId}`,
           },
           (payload) => {
-            console.log("Mudança detectada na tabela organizacoes:", payload);
+            console.log("Mudança detectada na tabela usuario_organizacoes:", payload);
             // Recarregar organizações quando houver mudanças
             fetchOrganizations();
           }

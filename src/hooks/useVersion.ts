@@ -9,6 +9,8 @@ import { useEffect, useState } from 'react';
 
 interface VersionInfo {
   version: string;
+  isBeta?: boolean;
+  betaStage?: string;
   buildDate: string;
   environment: 'development' | 'production' | 'preview';
   gitTag?: string;
@@ -19,6 +21,8 @@ interface VersionInfo {
 export function useVersion(): VersionInfo {
   const [versionInfo, setVersionInfo] = useState<VersionInfo>({
     version: '0.0.0',
+    isBeta: true, // Assumir beta por padrão em dev
+    betaStage: 'development',
     buildDate: new Date().toISOString(),
     environment: 'development'
   });
@@ -44,7 +48,9 @@ export function useVersion(): VersionInfo {
 
       // Informações básicas quando version.json não está disponível
       setVersionInfo({
-        version: '1.0.0', // Versão hardcoded como fallback
+        version: '1.0.0-beta.1', // Versão hardcoded como fallback
+        isBeta: true,
+        betaStage: 'development',
         buildDate: new Date().toISOString(),
         environment,
         gitTag: undefined,

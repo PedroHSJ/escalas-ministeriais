@@ -55,7 +55,7 @@ export default function EditDepartmentPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const departmentId = params.id as string;
+  const departmentId = params?.id as string;
 
   useEffect(() => {
     const fetchDepartment = async () => {
@@ -67,7 +67,10 @@ export default function EditDepartmentPage() {
           .select(
             `
             *,
-            organizacao:organizacoes(nome, user_id)
+            organizacao:organizacoes(
+              nome,
+              usuario_organizacoes!inner(usuario_id)
+            )
           `
           )
           .eq("id", departmentId)
@@ -81,8 +84,15 @@ export default function EditDepartmentPage() {
         }
 
         if (data) {
-          // Verificar se o usuário é dono da organização
-          if (data.organizacao?.user_id !== userId) {
+          // Verificar se o usuário tem acesso à organização através da tabela usuario_organizacoes
+          const { data: userOrgCheck } = await supabase
+            .from("usuario_organizacoes")
+            .select("id")
+            .eq("usuario_id", userId)
+            .eq("organizacao_id", data.organizacao_id)
+            .single();
+
+          if (!userOrgCheck) {
             toast.error("Você não tem permissão para editar este departamento");
             router.push("/departments/list");
             return;

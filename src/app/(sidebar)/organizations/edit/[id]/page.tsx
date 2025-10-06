@@ -51,7 +51,7 @@ export default function EditOrganizationPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const organizationId = params.id as string;
+  const organizationId = params?.id as string;
 
   useEffect(() => {
     const fetchOrganization = async () => {
@@ -60,9 +60,14 @@ export default function EditOrganizationPage() {
       try {
         const { data, error } = await supabase
           .from("organizacoes")
-          .select("*")
+          .select(`
+            *,
+            usuario_organizacoes!inner (
+              usuario_id
+            )
+          `)
           .eq("id", organizationId)
-          .eq("user_id", userId)
+          .eq("usuario_organizacoes.usuario_id", userId)
           .single();
 
         if (error) {
@@ -102,14 +107,31 @@ export default function EditOrganizationPage() {
     setSaving(true);
 
     try {
+      // Primeiro, verificar se o usuário tem permissão para editar esta organização
+      const { data: permissionCheck, error: permissionError } = await supabase
+        .from("organizacoes")
+        .select(`
+          id,
+          usuario_organizacoes!inner (
+            usuario_id
+          )
+        `)
+        .eq("id", organizationId)
+        .eq("usuario_organizacoes.usuario_id", userId)
+        .single();
+
+      if (permissionError || !permissionCheck) {
+        toast.error("Você não tem permissão para editar esta organização");
+        return;
+      }
+
       const { error } = await supabase
         .from("organizacoes")
         .update({
           nome: formData.nome.trim(),
           tipo: formData.tipo,
         })
-        .eq("id", organizationId)
-        .eq("user_id", userId);
+        .eq("id", organizationId);
 
       if (error) {
         console.error("Erro ao atualizar organização:", error);

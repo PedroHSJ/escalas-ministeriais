@@ -67,7 +67,7 @@ interface Specialization {
 
 export default function Page() {
   const searchParams = useSearchParams();
-  const editId = searchParams.get("edit");
+  const editId = searchParams?.get("edit");
 
   const { userId } = useAuth();
   const [organizations, setOrganizations] = useState<Organization[]>([]);
@@ -91,8 +91,13 @@ export default function Page() {
 
     const { data, error } = await supabase
       .from("organizacoes")
-      .select("*")
-      .eq("user_id", userId);
+      .select(`
+        *,
+        usuario_organizacoes!inner (
+          usuario_id
+        )
+      `)
+      .eq("usuario_organizacoes.usuario_id", userId);
 
     if (!error && data) {
       setOrganizations(data);

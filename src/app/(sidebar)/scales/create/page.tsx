@@ -11,6 +11,8 @@ import { CalendarIcon, PrinterIcon, Download, Users, Building2, Plus, X, Save } 
 import { format, getDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
+import { useOrganization } from "@/contexts/OrganizationContext";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Organization {
   id: string;
@@ -46,7 +48,7 @@ interface ScaleAssignment {
   memberId: string;
   memberName: string;
   date: Date;
-  especializacaoId: string;
+  especializacaoId: string | null;
   especializacaoNome: string;
 }
 
@@ -61,8 +63,6 @@ const DAYS_OF_WEEK = [
 ];
 
 export default function Page() {
-  const [userId, setUserId] = useState("");
-  const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [specializations, setSpecializations] = useState<Specialization[]>([]);
@@ -71,35 +71,12 @@ export default function Page() {
   const [scaleName, setScaleName] = useState("");
   const [assignments, setAssignments] = useState<ScaleAssignment[]>([]);
   const [loading, setLoading] = useState(false);
-
+  const {organizations} = useOrganization();
+  const {userId} = useAuth();
   // Form states para adicionar nova participação
   const [selectedDate, setSelectedDate] = useState<Date>();
   const [selectedMember, setSelectedMember] = useState("");
   const [selectedSpecialization, setSelectedSpecialization] = useState("");
-
-  const fetchSession = async () => {
-    if(process.env.NODE_ENV === "development") {
-      setUserId("d58c420f-7db1-42e9-b040-e1d038ef79af");
-      return;
-    }
-    const { data } = await supabase.auth.getSession();
-    if (data.session?.user) {
-      setUserId(data.session.user.id);
-    } 
-  };
-
-  const fetchOrganizations = async () => {
-    if (!userId) return;
-    
-    const { data, error } = await supabase
-      .from('organizacoes')
-      .select('*')
-      .eq('user_id', userId);
-    
-    if (!error && data) {
-      setOrganizations(data);
-    }
-  };
 
   const fetchDepartments = async (organizationId: string) => {
     const { data, error } = await supabase
@@ -158,16 +135,6 @@ export default function Page() {
   };
 
   useEffect(() => {
-    fetchSession();
-  }, []);
-
-  useEffect(() => {
-    if (userId) {
-      fetchOrganizations();
-    }
-  }, [userId]);
-
-  useEffect(() => {
     if (selectedOrganization) {
       fetchDepartments(selectedOrganization);
       fetchSpecializations(selectedOrganization);
@@ -194,23 +161,52 @@ export default function Page() {
   };
 
   const addAssignment = () => {
-    if (!selectedDate || !selectedMember || !selectedSpecialization) {
-      toast.error("Preencha todos os campos para adicionar à escala");
+    if (!selectedDate || !selectedMember) {
+      toast.error("Preencha todos os campos obrigatórios para adicionar à escala");
       return;
     }
 
     const member = members.find(m => m.id === selectedMember);
-    const specialization = specializations.find(s => s.id === selectedSpecialization);
+    if (!member) return;
 
-    if (!member || !specialization) return;
+    // Verificar se o membro tem especializações
+    const memberSpecializations = member.especializacoes || [];
+    let selectedSpec: Specialization | null = null;
+
+    if (memberSpecializations.length > 1) {
+      // Se tem mais de uma especialização, a especialização deve ser selecionada
+      if (!selectedSpecialization) {
+        toast.error("Este integrante possui múltiplas especializações. Selecione uma especialização.");
+        return;
+      }
+      selectedSpec = specializations.find(s => s.id === selectedSpecialization) || null;
+    } else if (memberSpecializations.length === 1) {
+      // Se tem apenas uma especialização, usar automaticamente
+      selectedSpec = specializations.find(s => s.id === memberSpecializations[0].id) || null;
+    } else {
+      // Se não tem especializações, permitir adicionar sem especialização
+      selectedSpec = null;
+    }
+
+    // Verificar se já existe essa combinação membro + data + especialização
+    const existingAssignment = assignments.find(a => 
+      a.memberId === selectedMember && 
+      a.date.toDateString() === selectedDate.toDateString() &&
+      a.especializacaoId === (selectedSpec?.id || null)
+    );
+
+    if (existingAssignment) {
+      toast.error("Este integrante já foi adicionado nesta data com essa especialização");
+      return;
+    }
 
     const newAssignment: ScaleAssignment = {
       id: Math.random().toString(36).substr(2, 9),
       memberId: selectedMember,
       memberName: member.nome,
       date: selectedDate,
-      especializacaoId: selectedSpecialization,
-      especializacaoNome: specialization.nome
+      especializacaoId: selectedSpec?.id || null,
+      especializacaoNome: selectedSpec?.nome || "Sem especialização"
     };
 
     setAssignments([...assignments, newAssignment]);
@@ -296,21 +292,164 @@ export default function Page() {
   };
 
   const printScale = () => {
-    const printContent = document.getElementById('scale-preview');
-    if (!printContent) return;
+    if (assignments.length === 0) {
+      toast.error("Adicione pelo menos uma participação antes de imprimir");
+      return;
+    }
 
-    const originalContents = document.body.innerHTML;
-    const printableContent = printContent.innerHTML;
+    // Criar conteúdo específico para impressão
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
 
-    document.body.innerHTML = `
-      <div style="padding: 20px; font-family: Arial, sans-serif;">
-        ${printableContent}
-      </div>
+    // Organizar participações por data
+    const sortedAssignments = assignments.sort((a, b) => a.date.getTime() - b.date.getTime());
+    
+    // Criar cabeçalhos da tabela
+    const headerRow = `
+      <tr>
+        <th style="width: 100px;">Data</th>
+        <th style="width: 120px;">Dia da Semana</th>
+        <th style="width: 200px;">Integrante</th>
+        <th style="width: 150px;">Especialização</th>
+      </tr>
     `;
 
-    window.print();
-    document.body.innerHTML = originalContents;
-    window.location.reload();
+    // Criar linhas da tabela
+    const tableContent = sortedAssignments.map((assignment, index) => `
+      <tr style="${index % 2 === 0 ? 'background-color: #f9f9f9;' : ''}">
+        <td style="text-align: center;">${format(assignment.date, "dd/MM/yyyy", { locale: ptBR })}</td>
+        <td style="text-align: center;">${DAYS_OF_WEEK[getDay(assignment.date)]}</td>
+        <td>${assignment.memberName}</td>
+        <td style="text-align: center;">${assignment.especializacaoNome}</td>
+      </tr>
+    `).join('');
+
+    // Calcular período da escala
+    const startDate = sortedAssignments[0]?.date || new Date();
+    const endDate = sortedAssignments[sortedAssignments.length - 1]?.date || new Date();
+
+    const organizationName = organizations.find(o => o.id === selectedOrganization)?.nome || "ORGANIZAÇÃO";
+    const departmentName = departments.find(d => d.id === selectedDepartment)?.nome || "DEPARTAMENTO";
+
+    const printHTML = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Escala de Serviço - ${scaleName || "Nova Escala"}</title>
+        <style>
+          @page {
+            size: A4;
+            margin: 15mm;
+          }
+          body {
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            line-height: 1.2;
+            margin: 0;
+            padding: 0;
+          }
+          .header {
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #000;
+            padding-bottom: 10px;
+          }
+          .organization-name {
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+          }
+          .scale-title {
+            font-size: 13px;
+            font-weight: bold;
+            margin-bottom: 3px;
+            text-transform: uppercase;
+          }
+          .period {
+            font-size: 11px;
+            margin-bottom: 5px;
+          }
+          .scale-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+          }
+          .scale-table th,
+          .scale-table td {
+            border: 1px solid #000;
+            text-align: left;
+            vertical-align: middle;
+            font-size: 10px;
+            padding: 8px;
+          }
+          .scale-table th {
+            background-color: #f5f5f5;
+            font-weight: bold;
+            text-align: center;
+          }
+          .footer {
+            margin-top: 30px;
+            text-align: center;
+            font-size: 10px;
+          }
+          .signature-section {
+            margin-top: 40px;
+            text-align: center;
+          }
+          .signature-line {
+            border-bottom: 1px solid #000;
+            width: 300px;
+            margin: 0 auto 5px auto;
+          }
+          @media print {
+            body { -webkit-print-color-adjust: exact; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="organization-name">${organizationName}</div>
+          <div class="scale-title">ESCALA DE SERVIÇO - ${departmentName.toUpperCase()}</div>
+          <div class="scale-title">${scaleName.toUpperCase()}</div>
+          <div class="period">PERÍODO: ${format(startDate, "dd/MM/yyyy", { locale: ptBR })} a ${format(endDate, "dd/MM/yyyy", { locale: ptBR })}</div>
+        </div>
+
+        <table class="scale-table">
+          <thead>
+            ${headerRow}
+          </thead>
+          <tbody>
+            ${tableContent}
+          </tbody>
+        </table>
+
+        <div class="footer">
+          <div>${organizationName}, ${format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}.</div>
+        </div>
+
+        <div class="signature-section">
+          <div style="margin-top: 60px;">
+            <div class="signature-line"></div>
+            <div style="margin-top: 5px; font-weight: bold;">
+              RESPONSÁVEL PELA ESCALA<br>
+              ${organizationName}
+            </div>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(printHTML);
+    printWindow.document.close();
+
+    // Aguardar o carregamento e imprimir
+    printWindow.onload = () => {
+      printWindow.print();
+      printWindow.close();
+    };
   };
 
   const groupedAssignments = groupAssignmentsByDay();
@@ -449,26 +588,70 @@ export default function Page() {
                         </Select>
                       </div>
 
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">Especialização</label>
-                        <Select value={selectedSpecialization} onValueChange={setSelectedSpecialization}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione uma especialização" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {specializations.map((spec) => (
-                              <SelectItem key={spec.id} value={spec.id}>
-                                {spec.nome}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                      {/* Mostrar seleção de especialização apenas se o membro tem mais de uma */}
+                      {selectedMember && (() => {
+                        const member = members.find(m => m.id === selectedMember);
+                        const memberSpecs = member?.especializacoes || [];
+                        
+                        if (memberSpecs.length > 1) {
+                          return (
+                            <div className="space-y-2">
+                              <label className="text-sm font-medium">Especialização</label>
+                              <Select value={selectedSpecialization} onValueChange={setSelectedSpecialization}>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Selecione uma especialização" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {memberSpecs.map((spec) => {
+                                    const fullSpec = specializations.find(s => s.id === spec.id);
+                                    return fullSpec ? (
+                                      <SelectItem key={fullSpec.id} value={fullSpec.id}>
+                                        {fullSpec.nome}
+                                      </SelectItem>
+                                    ) : null;
+                                  })}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          );
+                        } else if (memberSpecs.length === 1) {
+                          const singleSpec = specializations.find(s => s.id === memberSpecs[0].id);
+                          return (
+                            <div className="space-y-2">
+                              <label className="text-sm font-medium">Especialização</label>
+                              <div className="p-2 bg-muted rounded-md text-sm">
+                                {singleSpec?.nome || "Especialização única"}
+                              </div>
+                            </div>
+                          );
+                        } else {
+                          return (
+                            <div className="space-y-2">
+                              <label className="text-sm font-medium">Especialização</label>
+                              <div className="p-2 bg-muted rounded-md text-sm text-muted-foreground">
+                                Sem especialização
+                              </div>
+                            </div>
+                          );
+                        }
+                      })()}
 
                       <Button 
                         onClick={addAssignment} 
                         className="w-full"
-                        disabled={!selectedDate || !selectedMember || !selectedSpecialization}
+                        disabled={(() => {
+                          if (!selectedDate || !selectedMember) return true;
+                          
+                          const member = members.find(m => m.id === selectedMember);
+                          const memberSpecs = member?.especializacoes || [];
+                          
+                          // Se tem mais de uma especialização, deve selecionar uma
+                          if (memberSpecs.length > 1 && !selectedSpecialization) {
+                            return true;
+                          }
+                          
+                          return false;
+                        })()}
                       >
                         <Plus className="h-4 w-4 mr-2" />
                         Adicionar à Escala
@@ -537,35 +720,60 @@ export default function Page() {
                       <p className="text-md font-medium">{scaleName || "Nome da Escala"}</p>
                     </div>
                     
-                    {/* Participações Agrupadas por Dia */}
+                    {/* Tabela de Participações */}
                     <div className="space-y-4">
-                      {Object.entries(groupedAssignments).map(([dayDate, dayAssignments]) => (
-                        <div key={dayDate} className="space-y-2">
-                          <h4 className="font-semibold text-lg border-b border-muted pb-1">
-                            {dayDate}
-                          </h4>
-                          <div className="grid gap-2">
-                            {dayAssignments.map((assignment) => (
-                              <div key={assignment.id} className="flex justify-between items-center p-3 bg-muted/50 rounded">
-                                <div className="flex-1">
-                                  <div className="font-medium">{assignment.memberName}</div>
-                                  <div className="text-sm text-blue-600">
+                      <h4 className="font-semibold text-lg">Participações da Escala</h4>
+                      <div className="border rounded-lg overflow-hidden">
+                        <table className="w-full">
+                          <thead className="bg-secondary border-b-2 border-primary">
+                            <tr>
+                              <th className="text-left p-3 font-medium">Data</th>
+                              <th className="text-left p-3 font-medium">Dia da Semana</th>
+                              <th className="text-left p-3 font-medium">Integrante</th>
+                              <th className="text-left p-3 font-medium">Especialização</th>
+                              <th className="text-center p-3 font-medium w-16">Ações</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {assignments
+                              .sort((a, b) => a.date.getTime() - b.date.getTime())
+                              .map((assignment, index) => (
+                              <tr key={assignment.id} className={index % 2 === 0 ? "bg-secondary" : "bg-muted/30"}>
+                                <td className="p-3">
+                                  {format(assignment.date, "dd/MM/yyyy", { locale: ptBR })}
+                                </td>
+                                <td className="p-3">
+                                  {DAYS_OF_WEEK[getDay(assignment.date)]}
+                                </td>
+                                <td className="p-3 font-medium">
+                                  {assignment.memberName}
+                                </td>
+                                <td className="p-3">
+                                  <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
                                     {assignment.especializacaoNome}
-                                  </div>
-                                </div>
-                                <Button
-                                  onClick={() => removeAssignment(assignment.id)}
-                                  variant="outline"
-                                  size="sm"
-                                  className="ml-2"
-                                >
-                                  <X className="h-4 w-4" />
-                                </Button>
-                              </div>
+                                  </span>
+                                </td>
+                                <td className="p-3 text-center">
+                                  <Button
+                                    onClick={() => removeAssignment(assignment.id)}
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-8 w-8 p-0"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                </td>
+                              </tr>
                             ))}
+                          </tbody>
+                        </table>
+                        
+                        {assignments.length === 0 && (
+                          <div className="p-8 text-center text-muted-foreground">
+                            <p>Nenhuma participação adicionada ainda</p>
                           </div>
-                        </div>
-                      ))}
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}
