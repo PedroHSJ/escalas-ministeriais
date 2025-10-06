@@ -9,10 +9,13 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertTriangle, Calendar, Search, Filter, Users, Eye, Edit, Trash2, Plus } from "lucide-react";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import moment from "moment";
+import "moment/locale/pt-br";
 import Link from "next/link";
 import { toast } from "sonner";
+
+// Configurar locale do moment
+moment.locale('pt-br');
 
 interface Organization {
   id: string;
@@ -354,10 +357,14 @@ export default function Page() {
   const getNextDates = (participacoes: any[]) => {
     if (!participacoes || participacoes.length === 0) return null;
     
-    const today = new Date();
+    const today = moment().startOf('day');
+    
     const futureDates = participacoes
-      .filter(p => new Date(p.data) >= today)
-      .sort((a, b) => new Date(a.data).getTime() - new Date(b.data).getTime())
+      .filter(p => {
+        const participationDate = moment(p.data);
+        return participationDate.isSameOrAfter(today);
+      })
+      .sort((a, b) => moment(a.data).valueOf() - moment(b.data).valueOf())
       .slice(0, 2);
     
     return futureDates;
@@ -509,14 +516,14 @@ export default function Page() {
                                   <div className="flex gap-1 mt-1">
                                     {nextDates.map((p, index) => (
                                       <Badge key={index} variant="outline" className="text-xs">
-                                        {format(new Date(p.data), "dd/MM", { locale: ptBR })}
+                                        {moment(p.data).format("DD/MM")}
                                       </Badge>
                                     ))}
                                   </div>
                                 </div>
                               )}
                               <p className="text-xs text-muted-foreground mt-2">
-                                Criada em {format(new Date(scale.created_at), "dd/MM/yyyy", { locale: ptBR })}
+                                Criada em {moment(scale.created_at).format("DD/MM/YYYY")}
                               </p>
                             </div>
                             <div className="flex gap-1 ml-2">
@@ -588,7 +595,7 @@ export default function Page() {
                                 <div className="flex gap-1">
                                   {nextDates.map((p, index) => (
                                     <Badge key={index} variant="outline" className="text-xs">
-                                      {format(new Date(p.data), "dd/MM", { locale: ptBR })}
+                                      {moment(p.data).format("DD/MM")}
                                     </Badge>
                                   ))}
                                 </div>
@@ -598,7 +605,7 @@ export default function Page() {
                             </TableCell>
                             <TableCell>
                               <div className="text-sm">
-                                {format(new Date(scale.created_at), "dd/MM/yyyy", { locale: ptBR })}
+                                {moment(scale.created_at).format("DD/MM/YYYY")}
                               </div>
                             </TableCell>
                             <TableCell className="text-right">

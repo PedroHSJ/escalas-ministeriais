@@ -7,11 +7,14 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Calendar, PrinterIcon, Edit, ArrowLeft, Users, Building2, Clock } from "lucide-react";
-import { format, getDay } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import moment from "moment";
+import "moment/locale/pt-br";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
+
+// Configurar locale do moment
+moment.locale('pt-br');
 
 interface Scale {
   id: string;
@@ -139,10 +142,10 @@ export default function Page() {
     const grouped: Record<string, Participation[]> = {};
     
     participations.forEach(participation => {
-      const date = new Date(participation.data);
-      const dayOfWeek = getDay(date);
+      const date = moment(participation.data);
+      const dayOfWeek = date.day();
       const dayName = DAYS_OF_WEEK[dayOfWeek];
-      const dateKey = `${dayName} - ${format(date, "dd/MM/yyyy")}`;
+      const dateKey = `${dayName} - ${date.format('DD/MM/YYYY')}`;
       
       if (!grouped[dateKey]) {
         grouped[dateKey] = [];
@@ -350,7 +353,7 @@ export default function Page() {
             <CardContent>
               <div className="text-2xl font-bold">{participations.length}</div>
               <p className="text-xs text-muted-foreground">
-                Criada em {format(new Date(scale.created_at), "dd/MM/yyyy", { locale: ptBR })}
+                Criada em {moment(scale.created_at).format("DD/MM/YYYY")}
               </p>
             </CardContent>
           </Card>
@@ -368,7 +371,7 @@ export default function Page() {
               <div className="text-lg font-semibold">{scale.departamento?.organizacao?.nome}</div>
               <div className="text-base">{scale.departamento?.nome}</div>
               <div className="text-sm text-gray-600 mt-2">
-                Impresso em {format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                Impresso em {moment().format("DD/MM/YYYY [às] HH:mm")}
               </div>
             </div>
           </CardHeader>

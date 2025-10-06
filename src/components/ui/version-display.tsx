@@ -86,7 +86,7 @@ export function VersionDisplay({
       <PopoverTrigger asChild>
         {renderSimple()}
       </PopoverTrigger>
-      <PopoverContent className="w-80">
+      <PopoverContent className="w-80" side="bottom" align="center">
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <Info className="h-4 w-4" />
