@@ -10,7 +10,6 @@ import { Calendar, PrinterIcon, Edit, ArrowLeft, Users, Building2, Clock } from 
 import moment from "moment";
 import "moment/locale/pt-br";
 import { useSearchParams, useRouter } from "next/navigation";
-import Link from "next/link";
 import { toast } from "sonner";
 import { NavigationButton } from "@/components/ui/navigation-button";
 
@@ -202,12 +201,12 @@ export default function Page() {
 
     // Criar linhas da tabela
     const tableContent = sortedParticipations.map((participation, index) => {
-      const date = new Date(participation.data);
-      const dayOfWeek = DAYS_OF_WEEK[getDay(date)];
+      const date = moment(participation.data);
+      const dayOfWeek = DAYS_OF_WEEK[date.day()];
       
       return `
         <tr style="${index % 2 === 0 ? 'background-color: #f9f9f9;' : ''}">
-          <td style="text-align: center;">${format(date, "dd/MM/yyyy", { locale: ptBR })}</td>
+          <td style="text-align: center;">${date.format('DD/MM/YYYY')}</td>
           <td style="text-align: center;">${dayOfWeek}</td>
           <td>${participation.integrantes?.nome || 'Nome não disponível'}</td>
           <td style="text-align: center;">${participation.especializacoes?.nome || 'Sem especialização'}</td>
@@ -216,9 +215,9 @@ export default function Page() {
     }).join('');
 
     // Calcular período da escala
-    const startDate = sortedParticipations[0]?.data ? new Date(sortedParticipations[0].data) : new Date();
+    const startDate = sortedParticipations[0]?.data ? moment(sortedParticipations[0].data) : moment();
     const endDate = sortedParticipations[sortedParticipations.length - 1]?.data ? 
-      new Date(sortedParticipations[sortedParticipations.length - 1].data) : new Date();
+      moment(sortedParticipations[sortedParticipations.length - 1].data) : moment();
 
     const organizationName = scale.departamento?.organizacao?.nome || "ORGANIZAÇÃO";
     const departmentName = scale.departamento?.nome || "DEPARTAMENTO";
@@ -305,7 +304,7 @@ export default function Page() {
           <div class="organization-name">${organizationName}</div>
           <div class="scale-title">ESCALA DE SERVIÇO - ${departmentName.toUpperCase()}</div>
           <div class="scale-title">${scale.nome.toUpperCase()}</div>
-          <div class="period">PERÍODO: ${format(startDate, "dd/MM/yyyy", { locale: ptBR })} a ${format(endDate, "dd/MM/yyyy", { locale: ptBR })}</div>
+          <div class="period">PERÍODO: ${startDate.format('DD/MM/YYYY')} a ${endDate.format('DD/MM/YYYY')}</div>
         </div>
 
         <table class="scale-table">
@@ -318,7 +317,7 @@ export default function Page() {
         </table>
 
         <div class="footer">
-          <div>${organizationName}, ${format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}.</div>
+          <div>${organizationName}, ${moment().format('DD [de] MMMM [de] YYYY')}.</div>
         </div>
 
         <div class="signature-section">
@@ -535,8 +534,8 @@ export default function Page() {
                           {participations
                             .sort((a, b) => new Date(a.data).getTime() - new Date(b.data).getTime())
                             .map((participation, index) => {
-                              const date = new Date(participation.data);
-                              const dayOfWeek = DAYS_OF_WEEK[getDay(date)];
+                              const date = moment(participation.data);
+                              const dayOfWeek = DAYS_OF_WEEK[date.day()];
                               
                               return (
                                 <TableRow 
@@ -547,7 +546,7 @@ export default function Page() {
                                 >
                                   <TableCell className="print:border print:border-gray-300 print:p-2 print:text-center">
                                     <span className="font-medium print:text-sm">
-                                      {format(date, "dd/MM/yyyy", { locale: ptBR })}
+                                      {date.format('DD/MM/YYYY')}
                                     </span>
                                   </TableCell>
                                   <TableCell className="print:border print:border-gray-300 print:p-2 print:text-center">
